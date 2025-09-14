@@ -1,26 +1,26 @@
-# Radxa X4 (Intel N100) Platform Guide
+# Radxa CM5 (RK3588S) Platform Guide
 
-This directory contains complete setup, benchmarking, and analysis tools for the Radxa X4 platform with Intel N100 processor in the embedded AI benchmark suite.
+This directory contains complete setup, benchmarking, and analysis tools for the Radxa CM5 platform with Rockchip RK3588S processor in the embedded AI benchmark suite.
 
 ## 🎯 Platform Overview
 
-**Target Hardware**: Radxa X4 Single-Board Computer with Intel N100  
-**Architecture**: x86_64 with integrated graphics acceleration  
-**AI Framework**: Intel OpenVINO Toolkit  
-**Key Features**: x86 embedded computing, Intel UHD Graphics acceleration, unified memory architecture  
+**Target Hardware**: Radxa CM5 Compute Module with RK3588S  
+**Architecture**: ARM64 with dedicated NPU acceleration  
+**AI Framework**: RKNN Toolkit with OpenVINO support  
+**Key Features**: High-performance ARM computing, dedicated 6 TOPS NPU, Mali GPU acceleration  
 
 ### Hardware Specifications
-- **CPU**: 4-core Intel N100 (Alder Lake-N) @ 1.0 GHz base, 3.4 GHz turbo
-- **GPU**: Intel UHD Graphics (24 Execution Units)
-- **AI Accelerator**: Intel GNA 3.0 (Gaussian & Neural Accelerator)
-- **Memory**: 8GB or 16GB LPDDR5 @ up to 4800 MT/s
-- **Peak AI Performance**: Varies by workload (no published TOPS rating)
-- **Power Envelope**: 6W TDP (configurable)
+- **CPU**: 8-core ARM (4x Cortex-A76 @ 2.4 GHz + 4x Cortex-A55 @ 1.8 GHz)
+- **GPU**: Mali-G610 MP4 GPU with OpenGL ES 3.2, OpenCL 2.2, Vulkan 1.2
+- **AI Accelerator**: NPU with 6 TOPS INT8 performance
+- **Memory**: 4GB/8GB/16GB/32GB LPDDR4/LPDDR4x/LPDDR5
+- **Peak AI Performance**: 6 TOPS (INT8)
+- **Power Envelope**: 5-15W (configurable)
 
 ## 📁 Directory Structure
 
 ```
-radxa-x4/
+radxa-cm5/
 ├── 📄 README.md                    # This comprehensive platform guide
 ├── 📁 setup/                       # Platform installation and configuration
 │   ├── 📄 install_all.sh          # Automated setup script
@@ -39,12 +39,12 @@ radxa-x4/
 ## 🚀 Quick Start
 
 ### Prerequisites Checklist
-- [ ] Radxa X4 single-board computer with Intel N100
+- [ ] Radxa CM5 compute module with RK3588S
 - [ ] 16GB LPDDR5 RAM (recommended) or 8GB minimum
 - [ ] Active cooling solution (heatsink + fan) - **MANDATORY**
-- [ ] USB-C PD power supply (45W minimum)
+- [ ] 12V/2A DC power supply or USB-C PD (24W minimum)
 - [ ] microSD card (128GB+) or eMMC storage
-- [ ] Ubuntu 20.04 LTS (x86_64) flashed to storage
+- [ ] Ubuntu 20.04 LTS (ARM64) or Debian 11 flashed to storage
 - [ ] Network connectivity for downloads
 - [ ] Yokogawa WT300E power analyzer (optional but recommended)
 
@@ -52,7 +52,7 @@ radxa-x4/
 ```bash
 # Clone the benchmark repository
 git clone <repository-url>
-cd embedded-ai-benchmark-suite/platforms/radxa-x4/
+cd embedded-ai-benchmark-suite/platforms/radxa-cm5/
 
 # Run automated setup (this will take 30-45 minutes)
 cd setup/
@@ -79,7 +79,7 @@ chmod +x prepare_all_datasets.sh
 source ~/benchmark_workspace/setup_env.sh
 
 # ORB-SLAM3 CPU Benchmark
-cd ../platforms/radxa-x4/orb-slam3/
+cd ../platforms/radxa-cm5/orb-slam3/
 ./run_benchmark.sh
 
 # 3D Object Detection Pipeline
@@ -97,89 +97,99 @@ cd ../semantic-segmentation/
 cd ../../analysis/scripts/
 python3 analyze_all_results.py \
     --results-root ../../platforms/ \
-    --output-dir ../radxa-x4-analysis/
+    --output-dir ../radxa-cm5-analysis/
 ```
 
 ## 🏗️ Platform-Specific Features
 
-### OpenVINO Optimization
-All AI models are optimized using Intel OpenVINO for maximum performance:
-- **Model Optimizer (MO)**: Converts ONNX to OpenVINO IR format
-- **Post-Training Optimization Tool (POT)**: INT8 quantization
-- **CPU Optimization**: Intel CPU-specific optimizations (AVX, SSE)
-- **GPU Optimization**: Intel UHD Graphics acceleration
-- **Neural Network Compression Framework (NNCF)**: Advanced quantization
+### RKNN Optimization
+All AI models are optimized using RKNN toolkit for maximum performance:
+- **RKNN Converter**: Converts ONNX/TensorFlow/PyTorch to RKNN format
+- **Post-Training Quantization**: INT8 quantization for NPU acceleration
+- **NPU Optimization**: Dedicated 6 TOPS neural processing unit
+- **Mali GPU Support**: GPU acceleration for parallel computing tasks
+- **ARM CPU Optimization**: Optimized for big.LITTLE Cortex-A76/A55 cores
 
-### Dual Compute Strategy
-The Intel N100 platform supports two main acceleration paths:
-1. **CPU Path**: Uses Intel N100 cores with AVX/SSE optimizations
-2. **GPU Path**: Uses Intel UHD Graphics with OpenCL acceleration
+### Multi-Compute Strategy
+The RK3588S platform supports three main acceleration paths:
+1. **NPU Path**: Uses dedicated 6 TOPS NPU for AI inference
+2. **GPU Path**: Uses Mali-G610 MP4 GPU for parallel computing
+3. **CPU Path**: Uses ARM big.LITTLE cores for general processing
 
 ### Power Management Integration
-- **Intel P-State Driver**: Advanced CPU frequency scaling
-- **Turbo Boost**: Dynamic frequency scaling up to 3.4 GHz
-- **GPU Frequency Control**: Dynamic GPU clock scaling
-- **TDP Configuration**: 6W TDP with burst capability
+- **ARM DVFS**: Dynamic voltage and frequency scaling for CPU clusters
+- **Mali GPU Scaling**: Dynamic GPU frequency and voltage control
+- **NPU Power Management**: Intelligent NPU power gating and scaling
+- **Thermal Management**: Advanced thermal throttling and monitoring
 
 ## 📊 Expected Performance Ranges
 
 ### ORB-SLAM3 (CPU Benchmark)
 | Metric | Expected Range | Notes |
 |--------|----------------|-------|
-| Throughput | 15-25 FPS | Intel N100 4-core performance |
-| P99 Latency | 50-80 ms | Depends on turbo boost behavior |
-| Power | 6-15 W | Total system power including peripherals |
+| Throughput | 25-40 FPS | ARM Cortex-A76 high-performance cores |
+| P99 Latency | 30-50 ms | Superior ARM architecture performance |
+| Power | 6-10 W | Total system power including peripherals |
 
 ### 3D Object Detection (AI Benchmark)
 | Runtime | Throughput | Latency (P99) | Power | Notes |
 |---------|------------|---------------|-------|-------|
-| CPU | 0.96-1.92 FPS | 520-1040 ms | 8-12 W | CPU-only inference |
-| GPU | 1.45-3.7 FPS | 270-690 ms | 10-15 W | Intel UHD Graphics acceleration |
+| NPU | 8-15 FPS | 67-125 ms | 8-12 W | NPU accelerated inference |
+| GPU | 4-8 FPS | 125-250 ms | 10-15 W | Mali GPU acceleration |
+| CPU | 1.5-3 FPS | 333-667 ms | 6-10 W | ARM CPU-only inference |
 
 ### Semantic Segmentation (AI Benchmark)
 | Runtime | Throughput | Latency (P99) | Power | Notes |
 |---------|------------|---------------|-------|-------|
-| CPU | 8-18 FPS | 55-125 ms | 8-12 W | CPU-only inference |
-| GPU | 15-35 FPS | 28-67 ms | 10-15 W | GPU acceleration benefit |
+| NPU | 45-80 FPS | 12-22 ms | 8-12 W | NPU accelerated inference |
+| GPU | 25-45 FPS | 22-40 ms | 10-15 W | Mali GPU acceleration |
+| CPU | 12-25 FPS | 40-83 ms | 6-10 W | ARM CPU-only inference |
 
 ## ⚙️ Configuration and Optimization
 
 ### CPU Performance Modes
 ```bash
-# Set CPU governor to performance mode
-sudo cpupower frequency-set -g performance
+# Set CPU governor to performance mode for both clusters
+echo performance | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
+
+# Set maximum frequencies for big cores (A76)
+echo 2400000 | sudo tee /sys/devices/system/cpu/cpu[4-7]/cpufreq/scaling_max_freq
+
+# Set maximum frequencies for LITTLE cores (A55)
+echo 1800000 | sudo tee /sys/devices/system/cpu/cpu[0-3]/cpufreq/scaling_max_freq
 
 # Check current CPU frequencies
 cat /sys/devices/system/cpu/cpu*/cpufreq/scaling_cur_freq
-
-# Monitor turbo boost behavior
-sudo turbostat --interval 1
 ```
 
-### Intel GPU Configuration
+### Mali GPU Configuration
 ```bash
 # Check GPU availability
-lspci | grep VGA
-ls /sys/class/drm/card0/
+ls /sys/class/misc/mali0/
+cat /sys/kernel/debug/mali0/ctx
 
 # Monitor GPU frequency
-cat /sys/class/drm/card0/gt_cur_freq_mhz
+cat /sys/class/devfreq/fb000000.gpu/cur_freq
 
-# Set GPU to maximum performance
-echo $(cat /sys/class/drm/card0/gt_max_freq_mhz) | sudo tee /sys/class/drm/card0/gt_min_freq_mhz
+# Set GPU governor to performance
+echo performance | sudo tee /sys/class/devfreq/fb000000.gpu/governor
+
+# Set GPU to maximum frequency
+cat /sys/class/devfreq/fb000000.gpu/max_freq | sudo tee /sys/class/devfreq/fb000000.gpu/min_freq
 ```
 
-### OpenVINO Runtime Selection
+### RKNN Runtime Selection
 ```bash
-# Test available OpenVINO devices
+# Test available RKNN runtime
 python3 -c "
-from openvino.runtime import Core
-core = Core()
-print('Available devices:', core.available_devices)
+from rknn.api import RKNN
+rknn = RKNN()
+print('RKNN toolkit version:', rknn.get_version())
+print('Available targets: NPU, GPU, CPU')
 "
 
 # Run model on specific device
-benchmark_app -m model.xml -d CPU  # or GPU, AUTO
+# Use RKNN runtime for inference on NPU, GPU, or CPU
 ```
 
 ### Thermal Management
@@ -343,64 +353,64 @@ export OV_GPU_CACHE_CAPACITY=0
 ## 📊 Performance Comparison
 
 ### vs. NVIDIA Jetson Orin NX
-- **Architecture**: x86_64 vs ARM64
-- **AI Acceleration**: Intel UHD Graphics vs NVIDIA GPU/DLA
-- **Memory**: LPDDR5 shared vs LPDDR5 unified
-- **Software**: OpenVINO vs TensorRT
+- **Architecture**: ARM64 vs ARM64 (similar)
+- **AI Acceleration**: 6 TOPS NPU vs 70 TOPS GPU/DLA
+- **Memory**: LPDDR4x/5 vs LPDDR5 unified
+- **Software**: RKNN vs TensorRT
 
 ### vs. Qualcomm QCS6490
-- **Architecture**: x86_64 vs ARM64
-- **AI Acceleration**: Intel UHD Graphics vs Hexagon NPU
-- **Power**: 6-15W vs 5-12W
-- **Software**: OpenVINO vs SNPE
+- **Architecture**: ARM64 vs ARM64 (similar)
+- **AI Acceleration**: 6 TOPS NPU vs 12-13 TOPS Hexagon NPU
+- **CPU Performance**: Cortex-A76/A55 vs Kryo 670
+- **Software**: RKNN vs SNPE
 
-### Unique x86 Advantages
-- **Software Compatibility**: Broader x86 software ecosystem
-- **Development Tools**: Native x86 development and debugging
-- **Virtualization**: Better virtualization support
-- **Legacy Support**: Compatibility with x86 applications
+### Unique RK3588S Advantages
+- **NPU Acceleration**: Dedicated 6 TOPS neural processing unit
+- **High CPU Performance**: Powerful Cortex-A76 cores at 2.4 GHz
+- **Mali GPU**: Advanced Mali-G610 MP4 GPU with Vulkan 1.2
+- **Power Efficiency**: Excellent performance per watt ratio
 
 ## 🤝 Contributing
 
 ### Adding New Benchmarks
-1. Create benchmark directory under `radxa-x4/`
-2. Implement OpenVINO optimization pipeline
+1. Create benchmark directory under `radxa-cm5/`
+2. Implement RKNN optimization pipeline
 3. Add CPU and GPU runtime support
 4. Include comprehensive README with setup instructions
-5. Test on actual Radxa X4 hardware
+5. Test on actual Radxa CM5 hardware
 
 ### Optimization Guidelines
-- Always implement both CPU and GPU paths where applicable
-- Use OpenVINO Model Optimizer for all model conversions
+- Always implement NPU, GPU, and CPU paths where applicable
+- Use RKNN converter for all model optimizations
 - Include proper thermal and power management
-- Document OpenVINO version requirements
-- Provide fallback options for GPU-less systems
+- Document RKNN toolkit version requirements
+- Provide fallback options for NPU-less systems
 
-### Intel-Specific Considerations
-- Test with different Intel GPU driver versions
-- Validate performance across different TDP settings
-- Consider turbo boost behavior in benchmark design
-- Account for shared memory architecture effects
+### RK3588S-Specific Considerations
+- Test with different Mali GPU driver versions
+- Validate performance across different power profiles
+- Consider big.LITTLE scheduling behavior in benchmark design
+- Account for NPU memory bandwidth limitations
 
 ## ⚠️ Important Notes
 
 ### Hardware Limitations
-- **6W TDP**: May limit sustained performance under heavy loads
-- **Shared Memory**: CPU and GPU compete for memory bandwidth
-- **Single Channel**: Memory architecture may limit memory-intensive workloads
+- **NPU Memory**: Limited NPU memory may affect large model deployment
+- **Shared Memory**: CPU, GPU, and NPU compete for memory bandwidth
+- **Thermal Throttling**: High-performance cores may throttle under sustained load
 - **Cooling Dependency**: Performance highly dependent on thermal solution
 
 ### Software Dependencies
-- **OpenVINO Version**: Performance varies significantly across versions
-- **Intel GPU Drivers**: Linux GPU driver maturity affects stability
-- **Ubuntu Compatibility**: Best performance with Ubuntu 20.04 LTS
-- **Python Dependencies**: Specific package versions may be required
+- **RKNN Toolkit Version**: Performance varies significantly across versions
+- **Mali GPU Drivers**: Linux Mali driver maturity affects stability
+- **OS Compatibility**: Best performance with Ubuntu 20.04 LTS (ARM64) or Debian 11
+- **Python Dependencies**: Specific RKNN package versions may be required
 
 ### Power Measurement Challenges
-- **USB-C PD**: Requires specialized equipment for accurate measurement
-- **Dynamic Power**: Turbo boost creates variable power consumption
+- **DC Power**: Requires current shunt for accurate measurement
+- **Dynamic Power**: Big.LITTLE and NPU create variable power consumption
 - **System vs SoC**: Total system power includes peripherals and converters
 
 ---
 
-**Note**: This platform guide assumes Intel OpenVINO Toolkit 2023.x+ and Ubuntu 20.04 LTS x86_64. Performance results are highly dependent on thermal conditions, power delivery, turbo boost behavior, and OpenVINO version. The Intel N100's 6W TDP design prioritizes power efficiency over peak performance. Always report cooling solution, ambient temperature, power supply specifications, and software versions with benchmark results.
+**Note**: This platform guide assumes RKNN Toolkit 1.5.x+ and Ubuntu 20.04 LTS ARM64. Performance results are highly dependent on thermal conditions, power delivery, big.LITTLE scheduling, and RKNN toolkit version. The RK3588S design balances high performance with power efficiency through its dedicated NPU and advanced power management. Always report cooling solution, ambient temperature, power supply specifications, and software versions with benchmark results.

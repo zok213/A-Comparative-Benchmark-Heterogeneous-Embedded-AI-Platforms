@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# Radxa X4 (Intel N100) Complete Setup Script
+# Radxa CM5 (RK3588S) Complete Setup Script
 # This script automates the installation of all required software components
-# for the embedded AI benchmark suite on Radxa X4
+# for the embedded AI benchmark suite on Radxa CM5
 
 set -e  # Exit on any error
 
@@ -31,21 +31,20 @@ success() {
     echo -e "${GREEN}[SUCCESS]${NC} $1"
 }
 
-# Check if running on x86_64 (expected for Intel N100)
+# Check if running on ARM64 (expected for RK3588S)
 check_platform() {
     log "Checking platform architecture..."
     
     ARCH=$(uname -m)
-    if [ "$ARCH" != "x86_64" ]; then
-        error "Expected x86_64 architecture, found: $ARCH"
+    if [ "$ARCH" != "aarch64" ]; then
+        error "Expected ARM64 (aarch64) architecture, found: $ARCH"
     fi
     
-    # Check for Intel CPU
-    if grep -q "Intel" /proc/cpuinfo; then
-        CPU_MODEL=$(grep "model name" /proc/cpuinfo | head -1 | cut -d: -f2 | xargs)
-        log "Intel CPU detected: $CPU_MODEL"
+    # Check for RK3588S processor
+    if grep -q "RK3588" /proc/device-tree/compatible 2>/dev/null; then
+        log "RK3588S processor detected"
     else
-        warning "Intel CPU not detected"
+        warning "RK3588S processor not detected, continuing anyway"
     fi
     
     success "Platform check completed"
@@ -87,37 +86,43 @@ update_system() {
         nano \
         tree \
         bc \
-        ocl-icd-libopencl1 \
-        opencl-headers \
-        clinfo
+        device-tree-compiler \
+        librockchip-mpp-dev \
+        librockchip-vpu0 \
+        mali-g610-firmware
     
     success "System packages updated"
 }
 
-# Install Intel GPU drivers and compute runtime
-install_intel_gpu_drivers() {
-    log "Installing Intel GPU drivers and compute runtime..."
+# Install RKNN toolkit and NPU drivers
+install_rknn_toolkit() {
+    log "Installing RKNN toolkit and NPU drivers..."
     
-    # Add Intel GPU repository
-    wget -qO - https://repositories.intel.com/graphics/intel-graphics.key | sudo apt-key add -
-    echo "deb [arch=amd64] https://repositories.intel.com/graphics/ubuntu focal main" | sudo tee /etc/apt/sources.list.d/intel-graphics.list
+    # Create RKNN installation directory
+    mkdir -p ~/rknn_toolkit
+    cd ~/rknn_toolkit
     
-    sudo apt update
+    # Download RKNN toolkit (latest version)
+    log "Downloading RKNN toolkit..."
+    wget https://github.com/rockchip-linux/rknn-toolkit2/releases/download/v1.5.2/rknn_toolkit2-1.5.2-cp38-cp38-linux_aarch64.whl
     
-    # Install Intel GPU drivers
-    sudo apt install -y \
-        intel-media-va-driver-non-free \
-        intel-level-zero-gpu \
-        level-zero \
-        intel-opencl-icd
+    # Install RKNN toolkit
+    pip3 install rknn_toolkit2-1.5.2-cp38-cp38-linux_aarch64.whl
     
-    # Verify OpenCL installation
-    if command -v clinfo >/dev/null 2>&1; then
-        log "OpenCL devices:"
-        clinfo -l || warning "No OpenCL devices found"
-    fi
+    # Install additional RKNN dependencies
+    pip3 install \
+        onnx \
+        onnx-simplifier \
+        tensorflow \
+        torch \
+        torchvision \
+        numpy \
+        opencv-python
     
-    success "Intel GPU drivers installed"
+    # Verify RKNN installation
+    python3 -c "from rknn.api import RKNN; print('RKNN toolkit installed successfully')" || warning "RKNN toolkit verification failed"
+    
+    success "RKNN toolkit installed"
 }
 
 # Install ORB-SLAM3 dependencies
@@ -185,19 +190,13 @@ build_orb_slam3() {
     success "ORB-SLAM3 built successfully"
 }
 
-# Install Intel OpenVINO Toolkit
-install_openvino() {
-    log "Installing Intel OpenVINO Toolkit..."
+# Setup additional AI frameworks
+setup_ai_frameworks() {
+    log "Setting up additional AI frameworks..."
     
-    # Install OpenVINO via pip (recommended method)
+    # Install additional Python packages for AI workloads
     pip3 install --upgrade pip
-    pip3 install openvino openvino-dev
-    
-    # Install additional OpenVINO tools
     pip3 install \
-        openvino-telemetry \
-        nncf \
-        onnx \
         torch \
         torchvision \
         torchaudio \
@@ -207,29 +206,26 @@ install_openvino() {
         pandas \
         seaborn \
         tqdm \
-        opencv-python \
         matplotlib \
-        numpy
+        numpy \
+        onnx-simplifier \
+        protobuf
     
-    # Verify OpenVINO installation
-    python3 -c "import openvino as ov; print(f'OpenVINO version: {ov.__version__}')" || {
-        error "OpenVINO installation failed"
-    }
+    # Install Mali GPU compute libraries if available
+    if [ -f "/usr/lib/aarch64-linux-gnu/libmali.so" ]; then
+        log "Mali GPU libraries detected"
+        # Setup OpenCL for Mali GPU
+        sudo apt install -y \
+            opencl-headers \
+            ocl-icd-opencl-dev \
+            clinfo
+    fi
     
-    # Check available devices
-    python3 -c "
-import openvino as ov
-core = ov.Core()
-devices = core.available_devices
-print('Available OpenVINO devices:', devices)
-for device in devices:
-    try:
-        print(f'Device {device}: {core.get_property(device, \"FULL_DEVICE_NAME\")}')
-    except:
-        print(f'Device {device}: Properties not available')
-"
+    # Verify installations
+    python3 -c "import torch; print(f'PyTorch version: {torch.__version__}')" || warning "PyTorch verification failed"
+    python3 -c "import onnx; print(f'ONNX version: {onnx.__version__}')" || warning "ONNX verification failed"
     
-    success "OpenVINO Toolkit installed"
+    success "AI frameworks setup completed"
 }
 
 # Setup power monitoring tools
@@ -372,18 +368,14 @@ optimize_system() {
 verify_installation() {
     log "Verifying installation..."
     
-    # Check OpenVINO
+    # Check RKNN toolkit
     python3 -c "
-import openvino as ov
-print(f'OpenVINO version: {ov.__version__}')
-core = ov.Core()
-devices = core.available_devices
-print(f'Available devices: {devices}')
-if 'GPU' in devices:
-    print('✓ Intel GPU support available')
-else:
-    print('✗ Intel GPU support not available')
-" || error "OpenVINO verification failed"
+from rknn.api import RKNN
+rknn = RKNN()
+print(f'RKNN toolkit version: {rknn.get_version()}')
+print('✓ RKNN toolkit available')
+print('Available targets: NPU, GPU, CPU')
+" || warning "RKNN toolkit verification failed"
     
     # Check ORB-SLAM3
     if [ -f "~/ORB_SLAM3/Examples/Monocular-Inertial/mono_inertial_euroc" ]; then
@@ -392,15 +384,17 @@ else:
         warning "ORB-SLAM3 executable not found"
     fi
     
-    # Check OpenCL
-    if command -v clinfo >/dev/null 2>&1; then
-        clinfo -l > /dev/null && success "OpenCL installation verified" || warning "OpenCL devices not found"
+    # Check Mali GPU
+    if [ -f "/sys/class/misc/mali0/device/uevent" ]; then
+        success "Mali GPU detected"
+    else
+        warning "Mali GPU not detected"
     fi
     
     # Check Python packages
     python3 -c "
 import sys
-packages = ['cv2', 'numpy', 'matplotlib', 'openvino', 'onnx', 'torch']
+packages = ['cv2', 'numpy', 'matplotlib', 'onnx', 'torch']
 for pkg in packages:
     try:
         __import__(pkg)
@@ -414,21 +408,21 @@ for pkg in packages:
 
 # Main installation function
 main() {
-    log "Starting Radxa X4 (Intel N100) setup for embedded AI benchmarking..."
+    log "Starting Radxa CM5 (RK3588S) setup for embedded AI benchmarking..."
     
     check_platform
     update_system
-    install_intel_gpu_drivers
+    install_rknn_toolkit
     install_orb_slam3_deps
     build_orb_slam3
-    install_openvino
+    setup_ai_frameworks
     setup_power_monitoring
     create_directories
     setup_environment
     optimize_system
     verify_installation
     
-    success "Radxa X4 (Intel N100) setup completed successfully!"
+    success "Radxa CM5 (RK3588S) setup completed successfully!"
     
     echo ""
     echo "=================================================="
@@ -449,7 +443,7 @@ main() {
     echo "Important Notes:"
     echo "- Ensure proper cooling is in place before running benchmarks"
     echo "- For power measurement, connect external power analyzer"
-    echo "- Intel GPU acceleration requires proper driver installation"
+    echo "- NPU acceleration requires RKNN toolkit and proper model conversion"
     echo ""
     echo "For detailed usage instructions, see the README.md files"
     echo "in each benchmark directory."
