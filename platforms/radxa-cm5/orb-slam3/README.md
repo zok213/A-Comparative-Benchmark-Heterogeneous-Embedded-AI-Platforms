@@ -1,45 +1,46 @@
-# ORB-SLAM3 Benchmark - Radxa X4 (Intel N100)
+# ORB-SLAM3 Benchmark - Radxa CM5 (RK3588S)
 
-This directory contains the complete setup and execution scripts for benchmarking ORB-SLAM3 performance on the Radxa X4 platform with Intel N100 processor.
+This directory contains the complete setup and execution scripts for benchmarking ORB-SLAM3 performance on the Radxa CM5 platform with Rockchip RK3588S processor.
 
 ## 📋 Overview
 
 **Benchmark Type**: CPU Performance Evaluation  
-**Target Platform**: Radxa X4 with Intel N100 (Alder Lake-N)  
+**Target Platform**: Radxa CM5 with RK3588S (ARM big.LITTLE)  
 **Workload**: Visual-Inertial SLAM using ORB-SLAM3  
 **Dataset**: EuRoC MAV Machine Hall 01 sequence  
 **Key Metrics**: Throughput (FPS), P99 Latency, Power Consumption  
 
 ## 🎯 Benchmark Objective
 
-This benchmark evaluates the CPU and memory subsystem performance of the Intel N100 processor using ORB-SLAM3, a computationally intensive visual-inertial SLAM algorithm. The Intel N100 provides an interesting x86 comparison point against ARM-based embedded processors:
+This benchmark evaluates the CPU and memory subsystem performance of the RK3588S processor using ORB-SLAM3, a computationally intensive visual-inertial SLAM algorithm. The RK3588S provides high-performance ARM computing with big.LITTLE architecture:
 
 ### Why ORB-SLAM3?
-- **Multi-threaded workload**: Utilizes all 4 CPU cores simultaneously
+- **Multi-threaded workload**: Utilizes all 8 CPU cores with big.LITTLE scheduling
 - **Memory intensive**: Tests memory bandwidth and cache hierarchy performance
 - **Real-world application**: Represents actual robotics/AR/VR workloads
 - **CPU-bound**: Does not rely on specialized AI accelerators
-- **Cross-architecture comparison**: Enables x86 vs ARM performance analysis
+- **ARM performance evaluation**: Evaluates high-performance ARM computing
 
-### Intel N100 Architecture
-- **CPU Cores**: 4x Intel cores (no E-cores/P-cores split)
-- **Base Clock**: 1.0 GHz, Turbo up to 3.4 GHz
-- **Cache**: 6MB L3 cache
-- **Memory**: DDR4-3200/DDR5-4800 support
-- **TDP**: 6W (configurable)
+### RK3588S Architecture
+- **CPU Cores**: 8-core ARM big.LITTLE (4x Cortex-A76 + 4x Cortex-A55)
+- **Big Cores**: 4x Cortex-A76 @ 2.4 GHz (high-performance)
+- **LITTLE Cores**: 4x Cortex-A55 @ 1.8 GHz (power-efficient)
+- **Cache**: 512KB L2 per A76, 128KB L2 per A55, 3MB L3 shared
+- **Memory**: LPDDR4/LPDDR4x/LPDDR5 support
+- **TDP**: 5-15W (configurable)
 
 ## 🛠️ Prerequisites
 
 ### Hardware Requirements
-- Radxa X4 single-board computer with Intel N100
+- Radxa CM5 compute module with RK3588S
 - 16GB LPDDR5 RAM (recommended) or 8GB minimum
 - Active cooling solution (heatsink + fan) - **MANDATORY**
-- USB-C PD power supply (45W minimum)
+- 12V/2A DC power supply or USB-C PD (24W minimum)
 - microSD card (64GB+) or eMMC storage
 - Yokogawa WT300E power analyzer (for accurate power measurement)
 
 ### Software Requirements
-- Ubuntu 20.04 LTS (x86_64)
+- Ubuntu 20.04 LTS (ARM64) or Debian 11
 - Platform setup completed (run `../setup/install_all.sh` first)
 - EuRoC MAV dataset downloaded (run `../../datasets/prepare_all_datasets.sh`)
 
@@ -64,7 +65,7 @@ echo $DATASETS_ROOT
 
 ### 2. Run Benchmark
 ```bash
-cd radxa-x4/orb-slam3/
+cd radxa-cm5/orb-slam3/
 chmod +x run_benchmark.sh
 ./run_benchmark.sh
 ```
@@ -100,7 +101,7 @@ xdg-open ~/benchmark_workspace/results/orb_slam3/performance_analysis.png
 #### Performance Metrics
 - **Throughput (FPS)**: Average frames processed per second
   - Higher values indicate better performance
-  - Typical range for Intel N100: 15-30 FPS depending on thermal conditions
+  - Typical range for RK3588S: 25-40 FPS depending on thermal conditions
   
 - **P99 Latency (ms)**: 99th percentile frame processing time
   - Represents worst-case performance for 99% of frames
@@ -112,21 +113,21 @@ xdg-open ~/benchmark_workspace/results/orb_slam3/performance_analysis.png
   - Should be consistent across runs
 
 #### System Metrics
-- **CPU Utilization**: Multi-core CPU usage during benchmark
-- **CPU Frequencies**: Real-time CPU clock speeds
-- **GPU Frequencies**: Intel UHD Graphics clock speeds (monitored but not used)
+- **CPU Utilization**: Multi-core CPU usage during benchmark (big.LITTLE scheduling)
+- **CPU Frequencies**: Real-time CPU clock speeds for both clusters
+- **GPU Frequencies**: Mali-G610 MP4 GPU clock speeds (monitored but not used)
 - **Temperature**: CPU temperature monitoring for thermal analysis
 
 ### Expected Results (Reference)
-Based on Intel N100 specifications and thermal design:
+Based on RK3588S specifications and thermal design:
 
 | Metric | Expected Range | Notes |
 |--------|----------------|-------|
-| Throughput | 15-25 FPS | Depends on thermal conditions and turbo boost |
-| P99 Latency | 50-80 ms | Lower with sustained turbo frequencies |
-| Mean Latency | 40-67 ms | Should be stable across runs |
-| Power Consumption | 6-15 W | Total system power including peripherals |
-| CPU Temperature | 45-75°C | With adequate cooling |
+| Throughput | 25-40 FPS | Depends on thermal conditions and big core utilization |
+| P99 Latency | 30-50 ms | Lower with sustained high frequencies |
+| Mean Latency | 25-40 ms | Should be stable across runs |
+| Power Consumption | 6-10 W | Total system power including peripherals |
+| CPU Temperature | 40-70°C | With adequate cooling |
 
 ## ⚙️ Configuration Options
 
@@ -135,18 +136,18 @@ You can modify these parameters in the script:
 
 ```bash
 NUM_RUNS=5              # Number of benchmark iterations
-CPU_AFFINITY="0-3"      # CPU cores to use (all 4 cores)
+CPU_AFFINITY="4-7"      # CPU cores to use (big cores for performance)
 TIMEOUT=300             # Maximum runtime per iteration (seconds)
 ```
 
 ### Platform Optimizations
-The benchmark automatically applies Intel N100-specific optimizations:
+The benchmark automatically applies RK3588S-specific optimizations:
 
 - **CPU Governor**: Set to 'performance' mode for maximum sustained performance
-- **CPU Frequencies**: Locked to maximum values where possible
-- **Turbo Boost**: Enabled by default (can be disabled for consistency)
-- **CPU Affinity**: Bound to all 4 CPU cores
-- **Intel GPU**: Set to maximum frequency (for monitoring, not used in benchmark)
+- **CPU Frequencies**: Big cores set to 2.4 GHz, LITTLE cores to 1.8 GHz
+- **big.LITTLE Scheduling**: Uses big cores (A76) for compute-intensive tasks
+- **CPU Affinity**: Bound to big cores (4-7) for maximum performance
+- **Mali GPU**: Set to maximum frequency (for monitoring, not used in benchmark)
 
 ## 🔧 Troubleshooting
 

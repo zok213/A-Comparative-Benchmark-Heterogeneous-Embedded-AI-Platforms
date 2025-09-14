@@ -1,26 +1,27 @@
-# Radxa X4 Setup Guide
+# Radxa CM5 Setup Guide
 
-This directory contains the complete setup and installation scripts for running AI benchmarks on Radxa X4 platforms with Intel N100 processor.
+This directory contains the complete setup and installation scripts for running AI benchmarks on Radxa CM5 platforms with RK3588S processor.
 
 ## Overview
 
-The setup process installs and configures all necessary dependencies for running ORB-SLAM3, 3D Object Detection, and Semantic Segmentation benchmarks on Radxa X4 using Intel OpenVINO toolkit for AI acceleration.
+The setup process installs and configures all necessary dependencies for running ORB-SLAM3, 3D Object Detection, and Semantic Segmentation benchmarks on Radxa CM5 using RKNN toolkit for AI acceleration.
 
 ## Prerequisites
 
 ### Hardware Requirements
-- **Radxa X4** with Intel N100 processor (4 cores, up to 3.4GHz)
-- **Intel UHD Graphics** (integrated GPU)
+- **Radxa CM5** with RK3588S processor (8 cores: 4x A76 + 4x A55)
+- **Mali-G610 MP4 GPU** (integrated GPU)
+- **NPU**: 6 TOPS neural processing unit
 - **Active Cooling**: Heatsink or fan (recommended for sustained performance)
 - **Storage**: 64GB+ eMMC or high-speed microSD card (Class 10+)
-- **Power Supply**: 5V/3A USB-C power adapter (official recommended)
+- **Power Supply**: 12V/2A DC or USB-C PD (24W minimum)
 - **Optional**: Power measurement equipment
 
 ### Software Requirements
-- **Ubuntu 20.04 LTS** (x86_64 architecture)
-- **Internet Connection**: Required for downloading OpenVINO and dependencies
+- **Ubuntu 20.04 LTS** (ARM64 architecture) or Debian 11
+- **Internet Connection**: Required for downloading RKNN toolkit and dependencies
 - **Sudo Access**: Administrative privileges needed
-- **Intel Graphics Drivers**: Latest version for GPU acceleration
+- **Mali GPU Drivers**: Latest version for GPU acceleration
 
 ## Quick Setup
 
@@ -38,8 +39,8 @@ The setup process installs and configures all necessary dependencies for running
 # 1. Update system
 sudo apt update && sudo apt upgrade -y
 
-# 2. Install Intel OpenVINO
-./install_all.sh --openvino-only
+# 2. Install RKNN toolkit
+./install_all.sh --rknn-only
 
 # 3. Install benchmark-specific dependencies
 ./install_all.sh --benchmarks-only
@@ -49,67 +50,67 @@ sudo apt update && sudo apt upgrade -y
 
 ### System Dependencies
 - **Build Tools**: GCC, CMake, Git, Python 3.8+
-- **Intel Graphics**: Mesa drivers, Intel GPU tools
+- **Mali Graphics**: Mali GPU drivers, OpenCL support
 - **System Libraries**: OpenCV, NumPy, SciPy, Matplotlib
 - **Development Headers**: Linux kernel headers, build-essential
 - **Networking**: wget, curl for downloading dependencies
+- **RK3588S Specific**: Device tree compiler, Rockchip MPP, Mali firmware
 
-### Intel OpenVINO Toolkit
-- **Runtime**: OpenVINO inference engine
-- **Model Optimizer**: Tool for converting models to IR format
-- **Post-training Optimization Tool (POT)**: INT8 quantization
-- **Benchmark App**: Performance measurement utility
-- **Python API**: Python bindings for OpenVINO
+### RKNN Toolkit
+- **Runtime**: RKNN inference engine
+- **Model Converter**: Tool for converting ONNX/TensorFlow/PyTorch to RKNN format
+- **Quantization**: INT8 quantization for NPU acceleration
+- **Multi-target Support**: NPU, Mali GPU, and ARM CPU backends
+- **Python API**: Python bindings for RKNN toolkit
 
 ### Benchmark-Specific Dependencies
 
 #### ORB-SLAM3
-- **Eigen3**: Linear algebra library (Intel MKL optimized)
+- **Eigen3**: Linear algebra library (ARM optimized)
 - **Pangolin**: 3D visualization library
 - **DBoW2**: Bag-of-words library
-- **g2o**: Graph optimization library (Intel optimized build)
+- **g2o**: Graph optimization library (ARM optimized build)
 
 #### 3D Object Detection
-- **Open3D**: 3D data processing (Intel optimized)
-- **NumPy**: Numerical computing with Intel MKL
+- **RKNN Models**: CREStereo and PointPillars optimized for NPU/GPU/CPU
+- **NumPy**: Numerical computing with ARM optimizations
 - **SciPy**: Scientific computing library
 
 #### Semantic Segmentation
 - **Pillow**: Python imaging library
 - **scikit-image**: Image processing toolkit
-- **OpenCV**: Computer vision with Intel optimizations
+- **OpenCV**: Computer vision with ARM optimizations
 
-## OpenVINO Installation
+## RKNN Toolkit Installation
 
 ### Download and Setup
 ```bash
-# Download OpenVINO (latest LTS version)
-cd /tmp
-wget https://storage.openvinotoolkit.org/repositories/openvino/packages/2023.1/linux/l_openvino_toolkit_ubuntu20_2023.1.0.12185.47b736f63ed_x86_64.tgz
+# Create RKNN installation directory
+mkdir -p ~/rknn_toolkit
+cd ~/rknn_toolkit
 
-# Extract and install
-sudo mkdir -p /opt/intel
-sudo tar -xzf l_openvino_toolkit_*.tgz -C /opt/intel/
-sudo mv /opt/intel/l_openvino_toolkit_* /opt/intel/openvino_2023.1.0
+# Download RKNN toolkit (latest version for ARM64)
+wget https://github.com/rockchip-linux/rknn-toolkit2/releases/download/v1.5.2/rknn_toolkit2-1.5.2-cp38-cp38-linux_aarch64.whl
 
-# Create symlink
-sudo ln -sf /opt/intel/openvino_2023.1.0 /opt/intel/openvino
+# Install RKNN toolkit
+pip3 install rknn_toolkit2-1.5.2-cp38-cp38-linux_aarch64.whl
 
-# Set up environment
-echo "source /opt/intel/openvino/setupvars.sh" >> ~/.bashrc
-source /opt/intel/openvino/setupvars.sh
+# Install additional dependencies
+pip3 install onnx onnx-simplifier tensorflow torch torchvision numpy opencv-python
 ```
 
-### GPU Driver Setup
+### NPU and GPU Driver Setup
 ```bash
-# Install Intel GPU drivers
-sudo apt update
-sudo apt install -y intel-opencl-icd intel-level-zero-gpu level-zero
-sudo apt install -y intel-gpu-tools
+# Check NPU availability
+ls /sys/kernel/debug/rknpu/
+cat /sys/kernel/debug/rknpu/version
 
-# Verify GPU availability
-ls /dev/dri/
-clinfo  # Check OpenCL devices
+# Check Mali GPU availability
+ls /sys/class/misc/mali0/
+cat /sys/class/misc/mali0/device/uevent
+
+# Install Mali GPU support (if needed)
+sudo apt install -y mali-g610-firmware opencl-headers ocl-icd-opencl-dev clinfo
 ```
 
 ## Configuration Options

@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# 3D Object Detection Benchmark Script for Radxa X4 (Intel N100)
-# Implements the Pseudo-LiDAR + PointPillars pipeline benchmark using OpenVINO
+# 3D Object Detection Benchmark Script for Radxa CM5 (RK3588S)
+# Implements the Pseudo-LiDAR + PointPillars pipeline benchmark using RKNN toolkit
 
 set -e
 
@@ -43,10 +43,12 @@ WARMUP_ITERATIONS=100
 # Model paths
 CRESTEREO_ONNX="$MODELS_PATH/onnx/crestereo.onnx"
 POINTPILLARS_ONNX="$MODELS_PATH/onnx/pointpillars.onnx"
-CRESTEREO_IR_CPU="$MODELS_PATH/openvino/crestereo_cpu"
-CRESTEREO_IR_GPU="$MODELS_PATH/openvino/crestereo_gpu"
-POINTPILLARS_IR_CPU="$MODELS_PATH/openvino/pointpillars_cpu"
-POINTPILLARS_IR_GPU="$MODELS_PATH/openvino/pointpillars_gpu"
+CRESTEREO_RKNN_NPU="$MODELS_PATH/rknn/crestereo_npu.rknn"
+CRESTEREO_RKNN_GPU="$MODELS_PATH/rknn/crestereo_gpu.rknn"
+CRESTEREO_RKNN_CPU="$MODELS_PATH/rknn/crestereo_cpu.rknn"
+POINTPILLARS_RKNN_NPU="$MODELS_PATH/rknn/pointpillars_npu.rknn"
+POINTPILLARS_RKNN_GPU="$MODELS_PATH/rknn/pointpillars_gpu.rknn"
+POINTPILLARS_RKNN_CPU="$MODELS_PATH/rknn/pointpillars_cpu.rknn"
 
 # Check prerequisites
 check_prerequisites() {
@@ -57,19 +59,24 @@ check_prerequisites() {
         error "KITTI dataset not found at $KITTI_DATASET_PATH"
     fi
     
-    # Check OpenVINO installation
-    if ! python3 -c "import openvino" 2>/dev/null; then
-        error "OpenVINO not found. Please ensure OpenVINO is properly installed."
+    # Check RKNN toolkit installation
+    if ! python3 -c "from rknn.api import RKNN" 2>/dev/null; then
+        error "RKNN toolkit not found. Please ensure RKNN toolkit is properly installed."
     fi
     
-    # Check Intel GPU drivers
-    if [ ! -d "/sys/class/drm/card0" ]; then
-        warning "Intel GPU not detected, will use CPU-only inference"
+    # Check Mali GPU
+    if [ ! -f "/sys/class/misc/mali0/device/uevent" ]; then
+        warning "Mali GPU not detected, will use NPU and CPU inference"
+    fi
+    
+    # Check NPU
+    if [ ! -f "/sys/kernel/debug/rknpu/version" ]; then
+        warning "NPU not detected, will use GPU and CPU inference"
     fi
     
     # Check if models directory exists
     mkdir -p "$MODELS_PATH/onnx"
-    mkdir -p "$MODELS_PATH/openvino"
+    mkdir -p "$MODELS_PATH/rknn"
     
     success "Prerequisites check passed"
 }
@@ -219,67 +226,134 @@ EOF
     KITTI_DATASET_PATH="$KITTI_DATASET_PATH" RESULTS_DIR="$RESULTS_DIR" python3 "$RESULTS_DIR/create_calibration.py"
 }
 
-# Convert models to OpenVINO IR format
-convert_models_to_openvino() {
-    log "Converting ONNX models to OpenVINO IR format..."
+# Convert models to RKNN format
+convert_models_to_rknn() {
+    log "Converting ONNX models to RKNN format..."
     
-    # Convert CREStereo model
-    if [ -f "$CRESTEREO_ONNX" ]; then
-        log "Converting CREStereo model..."
-        
-        # Convert to FP32 IR
-        log "Converting CREStereo to FP32 IR..."
-        mo --input_model "$CRESTEREO_ONNX" \
-           --output_dir "${MODELS_PATH}/openvino/crestereo_fp32" \
-           --model_name crestereo_fp32
-        
-        # Quantize for CPU
-        log "Quantizing CREStereo for CPU..."
-        pot -c "$SCRIPT_DIR/crestereo_cpu_config.json" --output-dir "${CRESTEREO_IR_CPU}" || {
-            log "Quantization failed, copying FP32 model"
-            cp -r "${MODELS_PATH}/openvino/crestereo_fp32" "$CRESTEREO_IR_CPU"
-        }
-        
-        # Quantize for GPU
-        log "Quantizing CREStereo for GPU..."
-        pot -c "$SCRIPT_DIR/crestereo_gpu_config.json" --output-dir "${CRESTEREO_IR_GPU}" || {
-            log "GPU quantization failed, copying FP32 model"
-            cp -r "${MODELS_PATH}/openvino/crestereo_fp32" "$CRESTEREO_IR_GPU"
-        }
-        
-        success "CREStereo models converted"
-    else
-        error "CREStereo ONNX model not found at $CRESTEREO_ONNX"
-    fi
+    # Create RKNN conversion script
+    cat > "$RESULTS_DIR/convert_to_rknn.py" << 'EOF'
+#!/usr/bin/env python3
+
+import os
+import sys
+from pathlib import Path
+from rknn.api import RKNN
+
+def convert_model_to_rknn(onnx_path, rknn_path, target_platform='rk3588', quantize=True):
+    """Convert ONNX model to RKNN format."""
     
-    # Convert PointPillars model
-    if [ -f "$POINTPILLARS_ONNX" ]; then
-        log "Converting PointPillars model..."
+    # Create RKNN object
+    rknn = RKNN(verbose=True)
+    
+    print(f"Converting {onnx_path} to {rknn_path}")
+    
+    # Config for target platform
+    print(f"Configuring for {target_platform}")
+    ret = rknn.config(
+        mean_values=[[123.675, 116.28, 103.53]],
+        std_values=[[58.395, 57.12, 57.375]],
+        target_platform=target_platform,
+        quantized_dtype='asymmetric_quantized-u8' if quantize else 'float16'
+    )
+    if ret != 0:
+        print('Config failed!')
+        return False
+    
+    # Load ONNX model
+    print('Loading model')
+    ret = rknn.load_onnx(model=onnx_path)
+    if ret != 0:
+        print('Load model failed!')
+        return False
+    
+    # Build model
+    print('Building model')
+    ret = rknn.build(do_quantization=quantize)
+    if ret != 0:
+        print('Build model failed!')
+        return False
+    
+    # Export RKNN model
+    print('Export RKNN model')
+    ret = rknn.export_rknn(rknn_path)
+    if ret != 0:
+        print('Export failed!')
+        return False
+    
+    # Release
+    rknn.release()
+    print(f"Successfully converted to {rknn_path}")
+    return True
+
+def main():
+    models_path = Path(os.environ.get('MODELS_PATH', '.'))
+    
+    # Convert CREStereo models
+    crestereo_onnx = models_path / 'onnx' / 'crestereo.onnx'
+    if crestereo_onnx.exists():
+        print("Converting CREStereo models...")
         
-        # Convert to FP32 IR
-        log "Converting PointPillars to FP32 IR..."
-        mo --input_model "$POINTPILLARS_ONNX" \
-           --output_dir "${MODELS_PATH}/openvino/pointpillars_fp32" \
-           --model_name pointpillars_fp32
+        # NPU version (quantized)
+        convert_model_to_rknn(
+            str(crestereo_onnx),
+            str(models_path / 'rknn' / 'crestereo_npu.rknn'),
+            target_platform='rk3588',
+            quantize=True
+        )
         
-        # Quantize for CPU
-        log "Quantizing PointPillars for CPU..."
-        pot -c "$SCRIPT_DIR/pointpillars_cpu_config.json" --output-dir "${POINTPILLARS_IR_CPU}" || {
-            log "Quantization failed, copying FP32 model"
-            cp -r "${MODELS_PATH}/openvino/pointpillars_fp32" "$POINTPILLARS_IR_CPU"
-        }
+        # GPU version (FP16)
+        convert_model_to_rknn(
+            str(crestereo_onnx),
+            str(models_path / 'rknn' / 'crestereo_gpu.rknn'),
+            target_platform='rk3588',
+            quantize=False
+        )
         
-        # Quantize for GPU
-        log "Quantizing PointPillars for GPU..."
-        pot -c "$SCRIPT_DIR/pointpillars_gpu_config.json" --output-dir "${POINTPILLARS_IR_GPU}" || {
-            log "GPU quantization failed, copying FP32 model"
-            cp -r "${MODELS_PATH}/openvino/pointpillars_fp32" "$POINTPILLARS_IR_GPU"
-        }
+        # CPU version (quantized)
+        convert_model_to_rknn(
+            str(crestereo_onnx),
+            str(models_path / 'rknn' / 'crestereo_cpu.rknn'),
+            target_platform='rk3588',
+            quantize=True
+        )
+    
+    # Convert PointPillars models
+    pointpillars_onnx = models_path / 'onnx' / 'pointpillars.onnx'
+    if pointpillars_onnx.exists():
+        print("Converting PointPillars models...")
         
-        success "PointPillars models converted"
-    else
-        error "PointPillars ONNX model not found at $POINTPILLARS_ONNX"
-    fi
+        # NPU version (quantized)
+        convert_model_to_rknn(
+            str(pointpillars_onnx),
+            str(models_path / 'rknn' / 'pointpillars_npu.rknn'),
+            target_platform='rk3588',
+            quantize=True
+        )
+        
+        # GPU version (FP16)
+        convert_model_to_rknn(
+            str(pointpillars_onnx),
+            str(models_path / 'rknn' / 'pointpillars_gpu.rknn'),
+            target_platform='rk3588',
+            quantize=False
+        )
+        
+        # CPU version (quantized)
+        convert_model_to_rknn(
+            str(pointpillars_onnx),
+            str(models_path / 'rknn' / 'pointpillars_cpu.rknn'),
+            target_platform='rk3588',
+            quantize=True
+        )
+
+if __name__ == "__main__":
+    main()
+EOF
+    
+    # Run RKNN conversion
+    MODELS_PATH="$MODELS_PATH" python3 "$RESULTS_DIR/convert_to_rknn.py"
+    
+    success "RKNN model conversion completed"
 }
 
 # Create benchmark script
@@ -579,6 +653,38 @@ EOF
     chmod +x "$RESULTS_DIR/benchmark_pipeline.py"
 }
 
+# Run NPU benchmark
+run_npu_benchmark() {
+    log "Running NPU benchmark..."
+    
+    cd "$RESULTS_DIR"
+    
+    NUM_ITERATIONS="$NUM_ITERATIONS" WARMUP_ITERATIONS="$WARMUP_ITERATIONS" \
+    python3 benchmark_pipeline.py \
+        "$CRESTEREO_RKNN_NPU" \
+        "$POINTPILLARS_RKNN_NPU" \
+        "$KITTI_DATASET_PATH" \
+        "NPU" > "$RESULTS_DIR/logs/npu_benchmark.log" 2>&1
+    
+    success "NPU benchmark completed"
+}
+
+# Run GPU benchmark
+run_gpu_benchmark() {
+    log "Running Mali GPU benchmark..."
+    
+    cd "$RESULTS_DIR"
+    
+    NUM_ITERATIONS="$NUM_ITERATIONS" WARMUP_ITERATIONS="$WARMUP_ITERATIONS" \
+    python3 benchmark_pipeline.py \
+        "$CRESTEREO_RKNN_GPU" \
+        "$POINTPILLARS_RKNN_GPU" \
+        "$KITTI_DATASET_PATH" \
+        "GPU" > "$RESULTS_DIR/logs/gpu_benchmark.log" 2>&1
+    
+    success "Mali GPU benchmark completed"
+}
+
 # Run CPU benchmark
 run_cpu_benchmark() {
     log "Running CPU benchmark..."
@@ -587,50 +693,42 @@ run_cpu_benchmark() {
     
     NUM_ITERATIONS="$NUM_ITERATIONS" WARMUP_ITERATIONS="$WARMUP_ITERATIONS" \
     python3 benchmark_pipeline.py \
-        "$CRESTEREO_IR_CPU" \
-        "$POINTPILLARS_IR_CPU" \
+        "$CRESTEREO_RKNN_CPU" \
+        "$POINTPILLARS_RKNN_CPU" \
         "$KITTI_DATASET_PATH" \
         "CPU" > "$RESULTS_DIR/logs/cpu_benchmark.log" 2>&1
     
     success "CPU benchmark completed"
 }
 
-# Run GPU benchmark
-run_gpu_benchmark() {
-    log "Running Intel UHD Graphics benchmark..."
-    
-    cd "$RESULTS_DIR"
-    
-    NUM_ITERATIONS="$NUM_ITERATIONS" WARMUP_ITERATIONS="$WARMUP_ITERATIONS" \
-    python3 benchmark_pipeline.py \
-        "$CRESTEREO_IR_GPU" \
-        "$POINTPILLARS_IR_GPU" \
-        "$KITTI_DATASET_PATH" \
-        "GPU" > "$RESULTS_DIR/logs/gpu_benchmark.log" 2>&1
-    
-    success "Intel UHD Graphics benchmark completed"
-}
-
 # Main execution
 main() {
-    log "Starting 3D Object Detection benchmark for Radxa X4 (Intel N100)..."
+    log "Starting 3D Object Detection benchmark for Radxa CM5 (RK3588S)..."
     
     check_prerequisites
     setup_results_dir
     download_models
     create_calibration_dataset
-    convert_models_to_openvino
+    convert_models_to_rknn
     create_benchmark_script
     
-    # Run benchmarks on both CPU and GPU
-    run_cpu_benchmark
+    # Run benchmarks on NPU, GPU, and CPU
+    # NPU benchmark (if available)
+    if [ -f "/sys/kernel/debug/rknpu/version" ]; then
+        run_npu_benchmark
+    else
+        warning "NPU not detected, skipping NPU benchmark"
+    fi
     
-    # Only run GPU benchmark if Intel GPU is available
-    if [ -d "/sys/class/drm/card0" ]; then
+    # GPU benchmark (if available)
+    if [ -f "/sys/class/misc/mali0/device/uevent" ]; then
         run_gpu_benchmark
     else
-        warning "Intel GPU not detected, skipping GPU benchmark"
+        warning "Mali GPU not detected, skipping GPU benchmark"
     fi
+    
+    # CPU benchmark (always available)
+    run_cpu_benchmark
     
     success "3D Object Detection benchmark completed successfully!"
     
@@ -642,9 +740,12 @@ main() {
     echo "Results location: $RESULTS_DIR"
     echo ""
     echo "Key files:"
-    echo "- 3d_detection_results_cpu_*.json: CPU benchmark results"
-    if [ -d "/sys/class/drm/card0" ]; then
-        echo "- 3d_detection_results_gpu_*.json: Intel UHD Graphics benchmark results"
+    echo "- 3d_detection_results_cpu_*.json: ARM CPU benchmark results"
+    if [ -f "/sys/class/misc/mali0/device/uevent" ]; then
+        echo "- 3d_detection_results_gpu_*.json: Mali GPU benchmark results"
+    fi
+    if [ -f "/sys/kernel/debug/rknpu/version" ]; then
+        echo "- 3d_detection_results_npu_*.json: NPU benchmark results"
     fi
     echo "- logs/: Detailed execution logs"
     echo ""

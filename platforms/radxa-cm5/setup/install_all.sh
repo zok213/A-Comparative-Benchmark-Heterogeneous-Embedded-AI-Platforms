@@ -280,10 +280,10 @@ setup_environment() {
     cat > ~/benchmark_workspace/setup_env.sh << 'EOF'
 #!/bin/bash
 
-# Radxa X4 (Intel N100) Benchmark Environment Setup
+# Radxa CM5 (RK3588S) Benchmark Environment Setup
 
-# OpenVINO environment (if installed via archive)
-# Note: pip installation doesn't require explicit environment setup
+# RKNN environment setup
+export RKNN_TOOLKIT_ROOT=~/rknn_toolkit
 
 # Benchmark workspace
 export BENCHMARK_ROOT=~/benchmark_workspace
@@ -297,11 +297,16 @@ export ORB_SLAM3_ROOT=~/ORB_SLAM3
 # Python path for custom modules
 export PYTHONPATH=$BENCHMARK_ROOT/scripts:$PYTHONPATH
 
-# Intel GPU environment
-export NEOReadDebugKeys=1
-export OverrideGpuAddressSpace=48
+# RK3588S specific environment
+export MALI_GPU_AVAILABLE=1
+export NPU_AVAILABLE=1
 
-echo "Environment variables set for Radxa X4 (Intel N100) benchmarking"
+# ARM CPU optimization
+export OMP_NUM_THREADS=8
+export OMP_PROC_BIND=true
+export OMP_PLACES=cores
+
+echo "Environment variables set for Radxa CM5 (RK3588S) benchmarking"
 EOF
     
     chmod +x ~/benchmark_workspace/setup_env.sh

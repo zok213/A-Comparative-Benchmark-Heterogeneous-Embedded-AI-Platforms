@@ -1,32 +1,32 @@
-# Semantic Segmentation Benchmark - Radxa X4
+# Semantic Segmentation Benchmark - Radxa CM5
 
-This directory contains the complete benchmarking setup for Semantic Segmentation using DDRNet-23-slim on Radxa X4 platforms with Intel N100 processor.
+This directory contains the complete benchmarking setup for Semantic Segmentation using DDRNet-23-slim on Radxa CM5 platforms with RK3588S processor.
 
 ## Overview
 
-DDRNet-23-slim is optimized for efficient inference on Intel N100 using OpenVINO toolkit. This benchmark evaluates both CPU and integrated GPU (Intel UHD Graphics) performance on the Cityscapes dataset.
+DDRNet-23-slim is optimized for efficient inference on RK3588S using RKNN toolkit. This benchmark evaluates NPU, Mali GPU, and ARM CPU performance on the Cityscapes dataset.
 
 ### Benchmark Objectives
 
 - **Primary Metric**: Segmentation throughput (FPS)
-- **Secondary Metrics**: CPU/GPU utilization, power consumption
+- **Secondary Metrics**: NPU/GPU/CPU utilization, power consumption
 - **Accuracy Metric**: Mean Intersection over Union (mIoU)
-- **Platform Focus**: OpenVINO optimization for Intel N100 CPU and iGPU
+- **Platform Focus**: RKNN optimization for RK3588S NPU, Mali GPU, and ARM CPU
 
 ## Prerequisites
 
 ### Hardware Requirements
-- **Radxa X4** with Intel N100 processor
+- **Radxa CM5** with RK3588S processor
 - **Active Cooling**: Heatsink or fan (recommended for sustained performance)
 - **Storage**: 64GB+ eMMC or high-speed microSD card (Class 10+)
-- **Power Supply**: 5V/3A USB-C power adapter
+- **Power Supply**: 12V/2A DC or USB-C PD (24W minimum)
 - **Optional**: Power measurement equipment
 
 ### Software Requirements
-- **Ubuntu 20.04 LTS** (x86_64)
-- **Intel OpenVINO Toolkit** 2023.x+
-- **Intel Graphics Drivers** (latest version)
-- **OpenCV 4.5+** with Intel optimizations
+- **Ubuntu 20.04 LTS** (ARM64) or Debian 11
+- **RKNN Toolkit** 1.5.x+
+- **Mali GPU Drivers** (latest version)
+- **OpenCV 4.5+** with ARM optimizations
 - **Python 3.8+** with NumPy, Pillow
 
 ### Dataset Requirements

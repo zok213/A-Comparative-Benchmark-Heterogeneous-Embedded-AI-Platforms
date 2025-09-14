@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# ORB-SLAM3 Benchmark Script for Radxa X4 (Intel N100)
+# ORB-SLAM3 Benchmark Script for Radxa CM5 (RK3588S)
 # Implements the CPU performance benchmark using EuRoC MAV dataset
 
 set -e
@@ -72,42 +72,45 @@ setup_results_dir() {
     success "Results directory created: $RESULTS_DIR"
 }
 
-# Optimize Intel N100 performance settings
-optimize_intel_n100() {
-    log "Optimizing Intel N100 performance settings..."
+# Optimize RK3588S performance settings
+optimize_rk3588s() {
+    log "Optimizing RK3588S performance settings..."
     
-    # Set CPU governor to performance mode
+    # Set CPU governor to performance mode for both clusters
     for cpu in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
         if [ -w "$cpu" ]; then
             echo performance | sudo tee "$cpu" > /dev/null 2>&1 || true
         fi
     done
     
-    # Set CPU frequencies to maximum
-    for cpu in /sys/devices/system/cpu/cpu*/cpufreq/scaling_setspeed; do
-        if [ -w "$cpu" ]; then
-            max_freq=$(cat "${cpu%/*}/cpuinfo_max_freq" 2>/dev/null || echo "")
-            if [ -n "$max_freq" ]; then
-                echo "$max_freq" | sudo tee "$cpu" > /dev/null 2>&1 || true
-            fi
+    # Set maximum frequencies for big cores (A76)
+    for cpu in {4..7}; do
+        if [ -w "/sys/devices/system/cpu/cpu${cpu}/cpufreq/scaling_max_freq" ]; then
+            echo 2400000 | sudo tee /sys/devices/system/cpu/cpu${cpu}/cpufreq/scaling_max_freq > /dev/null 2>&1 || true
         fi
     done
     
-    # Disable Intel Turbo Boost for consistent performance (optional)
-    if [ -f "/sys/devices/system/cpu/intel_pstate/no_turbo" ]; then
-        echo 0 | sudo tee /sys/devices/system/cpu/intel_pstate/no_turbo > /dev/null 2>&1 || true
+    # Set maximum frequencies for LITTLE cores (A55)
+    for cpu in {0..3}; do
+        if [ -w "/sys/devices/system/cpu/cpu${cpu}/cpufreq/scaling_max_freq" ]; then
+            echo 1800000 | sudo tee /sys/devices/system/cpu/cpu${cpu}/cpufreq/scaling_max_freq > /dev/null 2>&1 || true
+        fi
+    done
+    
+    # Set Mali GPU to maximum performance
+    if [ -f "/sys/class/devfreq/fb000000.gpu/governor" ]; then
+        echo performance | sudo tee /sys/class/devfreq/fb000000.gpu/governor > /dev/null 2>&1 || true
     fi
     
-    # Set Intel GPU to maximum performance
-    if [ -d "/sys/class/drm/card0/" ]; then
-        # Set GPU frequency to maximum (if available)
-        gpu_max_freq=$(cat /sys/class/drm/card0/gt_max_freq_mhz 2>/dev/null || echo "")
-        if [ -n "$gpu_max_freq" ]; then
-            echo "$gpu_max_freq" | sudo tee /sys/class/drm/card0/gt_min_freq_mhz > /dev/null 2>&1 || true
+    # Set GPU to maximum frequency
+    if [ -f "/sys/class/devfreq/fb000000.gpu/max_freq" ] && [ -f "/sys/class/devfreq/fb000000.gpu/min_freq" ]; then
+        max_freq=$(cat /sys/class/devfreq/fb000000.gpu/max_freq 2>/dev/null || echo "")
+        if [ -n "$max_freq" ]; then
+            echo "$max_freq" | sudo tee /sys/class/devfreq/fb000000.gpu/min_freq > /dev/null 2>&1 || true
         fi
     fi
     
-    success "Intel N100 performance optimizations applied"
+    success "RK3588S performance optimizations applied"
 }
 
 # Monitor system resources
@@ -127,8 +130,11 @@ start_monitoring() {
 #!/bin/bash
 while true; do
     echo "$(date): CPU_FREQ: $(cat /sys/devices/system/cpu/cpu*/cpufreq/scaling_cur_freq 2>/dev/null | tr '\n' ' ')"
-    if [ -f /sys/class/drm/card0/gt_cur_freq_mhz ]; then
-        echo "$(date): GPU_FREQ: $(cat /sys/class/drm/card0/gt_cur_freq_mhz 2>/dev/null)"
+    if [ -f /sys/class/devfreq/fb000000.gpu/cur_freq ]; then
+        echo "$(date): GPU_FREQ: $(cat /sys/class/devfreq/fb000000.gpu/cur_freq 2>/dev/null)"
+    fi
+    if [ -f /sys/kernel/debug/rknpu/version ]; then
+        echo "$(date): NPU_STATUS: $(cat /sys/kernel/debug/rknpu/version 2>/dev/null)"
     fi
     sleep 1
 done
@@ -234,8 +240,8 @@ run_single_benchmark() {
     # Run ORB-SLAM3 with timing
     local start_time=$(date +%s.%3N)
     
-    # Use taskset to bind to specific CPU cores for consistency (Intel N100 has 4 cores)
-    timeout 300 taskset -c 0-3 ./Examples/Monocular-Inertial/mono_inertial_euroc \
+    # Use taskset to bind to specific CPU cores for consistency (RK3588S has 8 cores, use big cores for performance)
+    timeout 300 taskset -c 4-7 ./Examples/Monocular-Inertial/mono_inertial_euroc \
         ./Vocabulary/ORBvoc.txt \
         ./Examples/Monocular-Inertial/EuRoC.yaml \
         "$EUROC_DATASET_PATH" \
@@ -271,11 +277,11 @@ run_benchmark_suite() {
     log "Starting ORB-SLAM3 benchmark suite ($NUM_RUNS runs)..."
     
     # Initialize summary file
-    echo "ORB-SLAM3 Benchmark Results - Radxa X4 (Intel N100)" > "$RESULTS_DIR/summary.txt"
+    echo "ORB-SLAM3 Benchmark Results - Radxa CM5 (RK3588S)" > "$RESULTS_DIR/summary.txt"
     echo "Date: $(date)" >> "$RESULTS_DIR/summary.txt"
     echo "Dataset: EuRoC MAV MH01" >> "$RESULTS_DIR/summary.txt"
     echo "Number of runs: $NUM_RUNS" >> "$RESULTS_DIR/summary.txt"
-    echo "CPU: Intel N100 (4-core, up to 3.4 GHz)" >> "$RESULTS_DIR/summary.txt"
+    echo "CPU: RK3588S (8-core ARM: 4x A76 @ 2.4GHz + 4x A55 @ 1.8GHz)" >> "$RESULTS_DIR/summary.txt"
     echo "=================================" >> "$RESULTS_DIR/summary.txt"
     
     local successful_runs=0
@@ -375,7 +381,7 @@ def main():
     mean_latencies = [m['mean_latency_ms'] for m in all_metrics]
     
     print("\n" + "="*50)
-    print("ORB-SLAM3 Performance Analysis - Radxa X4 (Intel N100)")
+    print("ORB-SLAM3 Performance Analysis - Radxa CM5 (RK3588S)")
     print("="*50)
     print(f"Number of runs: {len(all_metrics)}")
     print(f"Average throughput: {np.mean(throughputs):.2f} ± {np.std(throughputs):.2f} FPS")
@@ -384,7 +390,7 @@ def main():
     
     # Save detailed results
     with open(results_dir / 'detailed_analysis.txt', 'w') as f:
-        f.write("ORB-SLAM3 Detailed Performance Analysis - Radxa X4 (Intel N100)\n")
+        f.write("ORB-SLAM3 Detailed Performance Analysis - Radxa CM5 (RK3588S)\n")
         f.write("="*65 + "\n\n")
         
         for i, metrics in enumerate(all_metrics, 1):
@@ -408,14 +414,14 @@ def main():
     ax1.bar(range(1, len(throughputs) + 1), throughputs)
     ax1.set_xlabel('Run Number')
     ax1.set_ylabel('Throughput (FPS)')
-    ax1.set_title('ORB-SLAM3 Throughput per Run (Intel N100)')
+    ax1.set_title('ORB-SLAM3 Throughput per Run (RK3588S)')
     ax1.grid(True, alpha=0.3)
     
     # Latency plot
     ax2.bar(range(1, len(p99_latencies) + 1), p99_latencies)
     ax2.set_xlabel('Run Number')
     ax2.set_ylabel('P99 Latency (ms)')
-    ax2.set_title('ORB-SLAM3 P99 Latency per Run (Intel N100)')
+    ax2.set_title('ORB-SLAM3 P99 Latency per Run (RK3588S)')
     ax2.grid(True, alpha=0.3)
     
     plt.tight_layout()
@@ -445,11 +451,11 @@ trap cleanup EXIT
 
 # Main execution
 main() {
-    log "Starting ORB-SLAM3 benchmark for Radxa X4 (Intel N100)..."
+    log "Starting ORB-SLAM3 benchmark for Radxa CM5 (RK3588S)..."
     
     check_prerequisites
     setup_results_dir
-    optimize_intel_n100
+    optimize_rk3588s
     start_monitoring
     run_benchmark_suite
     analyze_results

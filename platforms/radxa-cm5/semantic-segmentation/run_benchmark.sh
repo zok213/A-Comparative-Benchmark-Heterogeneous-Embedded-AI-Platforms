@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Semantic Segmentation Benchmark Script for Radxa X4 (Intel N100)
-# Implements the DDRNet-23-slim benchmark using OpenVINO
+# Semantic Segmentation Benchmark Script for Radxa CM5 (RK3588S)
+# Implements the DDRNet-23-slim benchmark using RKNN toolkit
 
 set -e
 
@@ -38,8 +38,9 @@ WARMUP_ITERATIONS=100
 
 # Model paths
 DDRNET_ONNX="$MODELS_PATH/onnx/ddrnet23-slim.onnx"
-DDRNET_FP16_IR="$MODELS_PATH/openvino/ddrnet_fp16"
-DDRNET_INT8_IR="$MODELS_PATH/openvino/ddrnet_int8"
+DDRNET_RKNN_NPU="$MODELS_PATH/rknn/ddrnet_npu.rknn"
+DDRNET_RKNN_GPU="$MODELS_PATH/rknn/ddrnet_gpu.rknn"
+DDRNET_RKNN_CPU="$MODELS_PATH/rknn/ddrnet_cpu.rknn"
 
 # Check prerequisites
 check_prerequisites() {
@@ -50,14 +51,24 @@ check_prerequisites() {
         error "Cityscapes dataset not found at $CITYSCAPES_DATASET_PATH"
     fi
     
-    # Check OpenVINO installation
-    python3 -c "import openvino as ov; print(f'OpenVINO version: {ov.__version__}')" || {
-        error "OpenVINO not found. Please install OpenVINO first."
+    # Check RKNN toolkit installation
+    python3 -c "from rknn.api import RKNN; print('RKNN toolkit available')" || {
+        error "RKNN toolkit not found. Please install RKNN toolkit first."
     }
+    
+    # Check Mali GPU
+    if [ ! -f "/sys/class/misc/mali0/device/uevent" ]; then
+        warning "Mali GPU not detected, will use NPU and CPU inference"
+    fi
+    
+    # Check NPU
+    if [ ! -f "/sys/kernel/debug/rknpu/version" ]; then
+        warning "NPU not detected, will use GPU and CPU inference"
+    fi
     
     # Check if models directory exists
     mkdir -p "$MODELS_PATH/onnx"
-    mkdir -p "$MODELS_PATH/openvino"
+    mkdir -p "$MODELS_PATH/rknn"
     
     success "Prerequisites check passed"
 }
@@ -185,30 +196,111 @@ EOF
     CITYSCAPES_DATASET_PATH="$CITYSCAPES_DATASET_PATH" RESULTS_DIR="$RESULTS_DIR" python3 "$RESULTS_DIR/create_calibration.py"
 }
 
-# Convert DDRNet to OpenVINO IR format
-convert_model_to_openvino() {
-    log "Converting DDRNet ONNX model to OpenVINO IR format..."
+# Convert DDRNet to RKNN format
+convert_model_to_rknn() {
+    log "Converting DDRNet ONNX model to RKNN format..."
     
     if [ ! -f "$DDRNET_ONNX" ]; then
         error "DDRNet ONNX model not found at $DDRNET_ONNX"
     fi
     
-    # Convert ONNX to FP16 IR
-    log "Converting ONNX to FP16 IR..."
-    mo --input_model "$DDRNET_ONNX" \
-       --output_dir "$(dirname "$DDRNET_FP16_IR")" \
-       --model_name "$(basename "$DDRNET_FP16_IR")" \
-       --data_type FP16 \
-       --compress_to_fp16
+    # Create RKNN conversion script
+    cat > "$RESULTS_DIR/convert_ddrnet_to_rknn.py" << 'EOF'
+#!/usr/bin/env python3
+
+import os
+import sys
+from pathlib import Path
+from rknn.api import RKNN
+
+def convert_ddrnet_to_rknn(onnx_path, rknn_path, target_platform='rk3588', quantize=True):
+    """Convert DDRNet ONNX model to RKNN format."""
     
-    if [ ! -f "${DDRNET_FP16_IR}.xml" ]; then
-        error "Failed to create FP16 IR"
-    fi
+    # Create RKNN object
+    rknn = RKNN(verbose=True)
     
-    success "FP16 IR created successfully"
+    print(f"Converting {onnx_path} to {rknn_path}")
     
-    # Quantize to INT8 using NNCF
-    log "Quantizing to INT8 using NNCF..."
+    # Config for target platform
+    print(f"Configuring for {target_platform}")
+    ret = rknn.config(
+        mean_values=[[123.675, 116.28, 103.53]],
+        std_values=[[58.395, 57.12, 57.375]],
+        target_platform=target_platform,
+        quantized_dtype='asymmetric_quantized-u8' if quantize else 'float16'
+    )
+    if ret != 0:
+        print('Config failed!')
+        return False
+    
+    # Load ONNX model
+    print('Loading model')
+    ret = rknn.load_onnx(model=onnx_path)
+    if ret != 0:
+        print('Load model failed!')
+        return False
+    
+    # Build model
+    print('Building model')
+    ret = rknn.build(do_quantization=quantize)
+    if ret != 0:
+        print('Build model failed!')
+        return False
+    
+    # Export RKNN model
+    print('Export RKNN model')
+    ret = rknn.export_rknn(rknn_path)
+    if ret != 0:
+        print('Export failed!')
+        return False
+    
+    # Release
+    rknn.release()
+    print(f"Successfully converted to {rknn_path}")
+    return True
+
+def main():
+    models_path = Path(os.environ.get('MODELS_PATH', '.'))
+    ddrnet_onnx = models_path / 'onnx' / 'ddrnet23-slim.onnx'
+    
+    if not ddrnet_onnx.exists():
+        print(f"DDRNet ONNX model not found at {ddrnet_onnx}")
+        return
+    
+    print("Converting DDRNet models...")
+    
+    # NPU version (quantized)
+    convert_ddrnet_to_rknn(
+        str(ddrnet_onnx),
+        str(models_path / 'rknn' / 'ddrnet_npu.rknn'),
+        target_platform='rk3588',
+        quantize=True
+    )
+    
+    # GPU version (FP16)
+    convert_ddrnet_to_rknn(
+        str(ddrnet_onnx),
+        str(models_path / 'rknn' / 'ddrnet_gpu.rknn'),
+        target_platform='rk3588',
+        quantize=False
+    )
+    
+    # CPU version (quantized)
+    convert_ddrnet_to_rknn(
+        str(ddrnet_onnx),
+        str(models_path / 'rknn' / 'ddrnet_cpu.rknn'),
+        target_platform='rk3588',
+        quantize=True
+    )
+
+if __name__ == "__main__":
+    main()
+EOF
+    
+    # Run RKNN conversion
+    MODELS_PATH="$MODELS_PATH" python3 "$RESULTS_DIR/convert_ddrnet_to_rknn.py"
+    
+    success "RKNN model conversion completed"
     
     cat > "$RESULTS_DIR/quantize_model.py" << 'EOF'
 #!/usr/bin/env python3
@@ -589,51 +681,81 @@ EOF
     chmod +x "$RESULTS_DIR/benchmark_segmentation.py"
 }
 
-# Run GPU benchmark
-run_gpu_benchmark() {
-    log "Running Intel GPU benchmark..."
+# Run NPU benchmark
+run_npu_benchmark() {
+    log "Running NPU benchmark..."
     
     cd "$RESULTS_DIR"
     
     python3 benchmark_segmentation.py \
-        --model "${DDRNET_INT8_IR}.xml" \
+        --model "$DDRNET_RKNN_NPU" \
+        --dataset "$CITYSCAPES_DATASET_PATH" \
+        --device "NPU" \
+        --iterations "$NUM_ITERATIONS" \
+        --warmup "$WARMUP_ITERATIONS" > "$RESULTS_DIR/logs/npu_benchmark.log" 2>&1
+    
+    success "NPU benchmark completed"
+}
+
+# Run GPU benchmark
+run_gpu_benchmark() {
+    log "Running Mali GPU benchmark..."
+    
+    cd "$RESULTS_DIR"
+    
+    python3 benchmark_segmentation.py \
+        --model "$DDRNET_RKNN_GPU" \
         --dataset "$CITYSCAPES_DATASET_PATH" \
         --device "GPU" \
         --iterations "$NUM_ITERATIONS" \
         --warmup "$WARMUP_ITERATIONS" > "$RESULTS_DIR/logs/gpu_benchmark.log" 2>&1
     
-    success "Intel GPU benchmark completed"
+    success "Mali GPU benchmark completed"
 }
 
 # Run CPU benchmark
 run_cpu_benchmark() {
-    log "Running CPU benchmark..."
+    log "Running ARM CPU benchmark..."
     
     cd "$RESULTS_DIR"
     
     python3 benchmark_segmentation.py \
-        --model "${DDRNET_INT8_IR}.xml" \
+        --model "$DDRNET_RKNN_CPU" \
         --dataset "$CITYSCAPES_DATASET_PATH" \
         --device "CPU" \
         --iterations "$NUM_ITERATIONS" \
         --warmup "$WARMUP_ITERATIONS" > "$RESULTS_DIR/logs/cpu_benchmark.log" 2>&1
     
-    success "CPU benchmark completed"
+    success "ARM CPU benchmark completed"
 }
 
 # Main execution
 main() {
-    log "Starting Semantic Segmentation benchmark for Radxa X4 (Intel N100)..."
+    log "Starting Semantic Segmentation benchmark for Radxa CM5 (RK3588S)..."
     
     check_prerequisites
     setup_results_dir
     download_model
     create_calibration_dataset
-    convert_model_to_openvino
+    convert_model_to_rknn
     create_benchmark_script
     
-    # Run benchmarks on both GPU and CPU
-    run_gpu_benchmark
+    # Run benchmarks on NPU, GPU, and CPU
+    # NPU benchmark (if available)
+    if [ -f "/sys/kernel/debug/rknpu/version" ]; then
+        run_npu_benchmark
+    else
+        warning "NPU not detected, skipping NPU benchmark"
+    fi
+    
+    # GPU benchmark (if available)
+    if [ -f "/sys/class/misc/mali0/device/uevent" ]; then
+        run_gpu_benchmark
+    else
+        warning "Mali GPU not detected, skipping GPU benchmark"
+    fi
+    
+    # CPU benchmark (always available)
     run_cpu_benchmark
     
     success "Semantic Segmentation benchmark completed successfully!"
@@ -646,8 +768,13 @@ main() {
     echo "Results location: $RESULTS_DIR"
     echo ""
     echo "Key files:"
-    echo "- segmentation_results_gpu_*.json: Intel GPU benchmark results"
-    echo "- segmentation_results_cpu_*.json: CPU benchmark results"
+    if [ -f "/sys/kernel/debug/rknpu/version" ]; then
+        echo "- segmentation_results_npu_*.json: NPU benchmark results"
+    fi
+    if [ -f "/sys/class/misc/mali0/device/uevent" ]; then
+        echo "- segmentation_results_gpu_*.json: Mali GPU benchmark results"
+    fi
+    echo "- segmentation_results_cpu_*.json: ARM CPU benchmark results"
     echo "- logs/: Detailed execution logs"
     echo ""
     echo "To view results:"

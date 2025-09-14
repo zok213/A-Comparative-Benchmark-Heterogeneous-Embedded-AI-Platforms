@@ -1,18 +1,18 @@
-# 3D Object Detection Benchmark - Radxa X4 (Intel N100)
+# 3D Object Detection Benchmark - Radxa CM5 (RK3588S)
 
-This directory contains the complete setup and execution scripts for benchmarking 3D Object Detection performance on the Radxa X4 platform using the Pseudo-LiDAR + PointPillars pipeline with OpenVINO optimization.
+This directory contains the complete setup and execution scripts for benchmarking 3D Object Detection performance on the Radxa CM5 platform using the Pseudo-LiDAR + PointPillars pipeline with RKNN toolkit optimization.
 
 ## 📋 Overview
 
 **Benchmark Type**: AI Accelerator Performance Evaluation  
-**Target Platform**: Radxa X4 with Intel N100 + Intel UHD Graphics  
+**Target Platform**: Radxa CM5 with RK3588S + NPU + Mali GPU  
 **Workload**: Pseudo-LiDAR + PointPillars 3D Object Detection Pipeline  
 **Dataset**: KITTI 3D Object Detection  
 **Key Metrics**: End-to-end Latency, Throughput (FPS), 3D mAP, Power Consumption  
 
 ## 🎯 Benchmark Objective
 
-This benchmark evaluates the AI accelerator performance of the Intel N100 platform using a two-stage 3D object detection pipeline optimized with OpenVINO. This represents a unique x86-based embedded AI comparison point:
+This benchmark evaluates the AI accelerator performance of the RK3588S platform using a two-stage 3D object detection pipeline optimized with RKNN toolkit. This demonstrates high-performance ARM-based embedded AI capabilities:
 
 ### Pipeline Architecture
 1. **Stage 1**: Stereo depth estimation using CREStereo
@@ -21,32 +21,32 @@ This benchmark evaluates the AI accelerator performance of the Intel N100 platfo
 
 ### Why This Benchmark?
 - **Real-world relevance**: Mimics autonomous vehicle perception pipelines
-- **Heterogeneous compute**: Tests both Intel UHD Graphics and CPU
+- **Heterogeneous compute**: Tests NPU, Mali GPU, and ARM CPU
 - **Memory intensive**: Stresses memory bandwidth and cache hierarchy
-- **x86 AI performance**: Evaluates Intel's integrated GPU for AI workloads
-- **OpenVINO optimization**: Demonstrates Intel's AI optimization toolkit
+- **ARM AI performance**: Evaluates dedicated NPU for AI workloads
+- **RKNN optimization**: Demonstrates Rockchip's AI optimization toolkit
 
-### Intel N100 + UHD Graphics Architecture
-- **CPU**: 4-core Intel N100 (Alder Lake-N) up to 3.4 GHz
-- **GPU**: Intel UHD Graphics (24 Execution Units)
-- **AI Acceleration**: Intel GNA 3.0 + GPU compute
-- **Memory**: Shared LPDDR5 (up to 4800 MT/s)
-- **TDP**: 6W (configurable)
+### RK3588S + NPU + Mali GPU Architecture
+- **CPU**: 8-core ARM (4x Cortex-A76 @ 2.4 GHz + 4x Cortex-A55 @ 1.8 GHz)
+- **GPU**: Mali-G610 MP4 GPU with OpenCL 2.2, Vulkan 1.2
+- **AI Acceleration**: Dedicated 6 TOPS NPU
+- **Memory**: LPDDR4/LPDDR4x/LPDDR5 support
+- **TDP**: 5-15W (configurable)
 
 ## 🛠️ Prerequisites
 
 ### Hardware Requirements
-- Radxa X4 single-board computer with Intel N100
+- Radxa CM5 compute module with RK3588S
 - 16GB LPDDR5 RAM (recommended) or 8GB minimum
 - Active cooling solution (heatsink + fan) - **MANDATORY**
-- USB-C PD power supply (45W minimum)
+- 12V/2A DC power supply or USB-C PD (24W minimum)
 - microSD card (128GB+) or eMMC storage (dataset is ~12GB)
 - Yokogawa WT300E power analyzer (for accurate power measurement)
 
 ### Software Requirements
-- Ubuntu 20.04 LTS (x86_64)
-- Intel OpenVINO Toolkit 2023.x+ properly installed
-- Intel GPU drivers for Linux
+- Ubuntu 20.04 LTS (ARM64) or Debian 11
+- RKNN Toolkit 1.5.x+ properly installed
+- Mali GPU drivers for Linux
 - Platform setup completed (run `../setup/install_all.sh` first)
 - KITTI dataset downloaded (run `../../datasets/prepare_all_datasets.sh`)
 
@@ -54,12 +54,16 @@ This benchmark evaluates the AI accelerator performance of the Intel N100 platfo
 
 ### 1. Verify Prerequisites
 ```bash
-# Check Intel GPU availability
-ls /sys/class/drm/card0/
-lspci | grep VGA
+# Check Mali GPU availability
+ls /sys/class/misc/mali0/
+cat /sys/class/misc/mali0/device/uevent
 
-# Check if OpenVINO is properly installed
-python3 -c "import openvino; print('OpenVINO version:', openvino.__version__)"
+# Check NPU availability
+ls /sys/kernel/debug/rknpu/
+cat /sys/kernel/debug/rknpu/version
+
+# Check if RKNN toolkit is properly installed
+python3 -c "from rknn.api import RKNN; print('RKNN toolkit available')"
 
 # Check if KITTI dataset is available
 ls ~/benchmark_workspace/datasets/kitti/object/training/
@@ -72,18 +76,21 @@ echo $DATASETS_ROOT
 
 ### 2. Run Benchmark
 ```bash
-cd radxa-x4/3d-object-detection/
+cd radxa-cm5/3d-object-detection/
 chmod +x run_benchmark.sh
 ./run_benchmark.sh
 ```
 
 ### 3. View Results
 ```bash
-# View CPU results
-cat ~/benchmark_workspace/results/3d_detection/3d_detection_results_cpu_*.json
+# View NPU results
+cat ~/benchmark_workspace/results/3d_detection/3d_detection_results_npu_*.json
 
-# View Intel UHD Graphics results
+# View Mali GPU results
 cat ~/benchmark_workspace/results/3d_detection/3d_detection_results_gpu_*.json
+
+# View ARM CPU results
+cat ~/benchmark_workspace/results/3d_detection/3d_detection_results_cpu_*.json
 ```
 
 ## 📊 Understanding Results
