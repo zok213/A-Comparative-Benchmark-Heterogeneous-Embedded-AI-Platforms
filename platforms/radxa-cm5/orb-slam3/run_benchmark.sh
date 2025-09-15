@@ -239,35 +239,81 @@ run_single_benchmark() {
     
     # Run ORB-SLAM3 with timing
     local start_time=$(date +%s.%3N)
+    local success_flag=false
     
-    # Use taskset to bind to specific CPU cores for consistency (RK3588S has 8 cores, use big cores for performance)
-    timeout 300 taskset -c 4-7 ./Examples/Monocular-Inertial/mono_inertial_euroc \
-        ./Vocabulary/ORBvoc.txt \
-        ./Examples/Monocular-Inertial/EuRoC.yaml \
-        "$EUROC_DATASET_PATH" \
-        ./Examples/Monocular-Inertial/EuRoC_TimeStamps/MH01.txt \
-        > "$run_log" 2>&1 || {
-            log "ORB-SLAM3 run $run_number failed or timed out"
-            return 1
-        }
+    # Try Monocular-Inertial mode with headless config first (best performance for CPU benchmark)
+    if [ -f "./Examples/Monocular-Inertial/EuRoC_headless.yaml" ]; then
+        log "Attempting Monocular-Inertial mode with headless configuration..."
+        timeout 300 taskset -c 4-7 ./Examples/Monocular-Inertial/mono_inertial_euroc \
+            ./Vocabulary/ORBvoc.txt \
+            ./Examples/Monocular-Inertial/EuRoC_headless.yaml \
+            "$EUROC_DATASET_PATH" \
+            ./Examples/Monocular-Inertial/EuRoC_TimeStamps/MH01.txt \
+            > "$run_log" 2>&1 && success_flag=true
+    fi
+    
+    # Fallback to Stereo-Inertial mode if Monocular-Inertial fails
+    if [ "$success_flag" = false ]; then
+        warning "Monocular-Inertial mode failed, trying Stereo-Inertial mode..."
+        echo "--- FALLBACK TO STEREO-INERTIAL MODE ---" >> "$run_log"
+        timeout 300 taskset -c 4-7 ./Examples/Stereo-Inertial/stereo_inertial_euroc \
+            ./Vocabulary/ORBvoc.txt \
+            ./Examples/Stereo-Inertial/EuRoC.yaml \
+            "$EUROC_DATASET_PATH" \
+            ./Examples/Stereo-Inertial/EuRoC_TimeStamps/MH01.txt \
+            >> "$run_log" 2>&1 && success_flag=true
+    fi
+    
+    # Final fallback to Monocular mode
+    if [ "$success_flag" = false ]; then
+        warning "Stereo-Inertial mode failed, trying Monocular mode..."
+        echo "--- FALLBACK TO MONOCULAR MODE ---" >> "$run_log"
+        timeout 300 taskset -c 4-7 ./Examples/Monocular/mono_euroc \
+            ./Vocabulary/ORBvoc.txt \
+            ./Examples/Monocular/EuRoC.yaml \
+            "$EUROC_DATASET_PATH" \
+            ./Examples/Monocular/EuRoC_TimeStamps/MH01.txt \
+            >> "$run_log" 2>&1 && success_flag=true
+    fi
     
     local end_time=$(date +%s.%3N)
     local duration=$(echo "$end_time - $start_time" | bc)
     
-    # Extract performance metrics from log
-    local total_frames=$(grep -c "Frame processing time" "$run_log" || echo "0")
+    if [ "$success_flag" = false ]; then
+        log "ORB-SLAM3 run $run_number failed on all modes"
+        return 1
+    fi
     
-    if [ "$total_frames" -gt 0 ]; then
-        # Calculate metrics
+    # Extract performance metrics from log - check for successful completion
+    local map_points=$(grep -o "New Map created with [0-9]* points" "$run_log" | grep -o "[0-9]*" | tail -1 || echo "0")
+    local keyframes=$(grep -o "Map [0-9]* has [0-9]* KFs" "$run_log" | grep -o "[0-9]*" | tail -1 || echo "0")
+    local trajectory_saved=$(grep -c "Saving trajectory to CameraTrajectory.txt" "$run_log" || echo "0")
+    
+    if [ "$trajectory_saved" -gt 0 ] && [ "$keyframes" -gt 0 ]; then
+        # Calculate metrics from trajectory if available
+        local fps="N/A"
+        if [ -f "CameraTrajectory.txt" ]; then
+            local frame_count=$(wc -l < CameraTrajectory.txt)
+            if [ "$frame_count" -gt 1 ] && [ "$duration" != "0" ]; then
+                fps=$(echo "scale=2; $frame_count / $duration" | bc)
+            fi
+        fi
+        
+        # Record successful run
         echo "Run $run_number completed successfully" >> "$RESULTS_DIR/summary.txt"
         echo "Duration: ${duration}s" >> "$RESULTS_DIR/summary.txt"
-        echo "Total frames: $total_frames" >> "$RESULTS_DIR/summary.txt"
-        echo "Average FPS: $(echo "scale=2; $total_frames / $duration" | bc)" >> "$RESULTS_DIR/summary.txt"
+        echo "Map Points: $map_points" >> "$RESULTS_DIR/summary.txt"
+        echo "Keyframes: $keyframes" >> "$RESULTS_DIR/summary.txt"
+        echo "Estimated FPS: $fps" >> "$RESULTS_DIR/summary.txt"
         echo "---" >> "$RESULTS_DIR/summary.txt"
         
-        success "Run $run_number completed: $total_frames frames in ${duration}s"
+        # Copy trajectory files to results directory
+        [ -f "CameraTrajectory.txt" ] && cp "CameraTrajectory.txt" "$RESULTS_DIR/trajectories/run_${run_number}_camera_trajectory.txt"
+        [ -f "KeyFrameTrajectory.txt" ] && cp "KeyFrameTrajectory.txt" "$RESULTS_DIR/trajectories/run_${run_number}_keyframe_trajectory.txt"
+        
+        success "Run $run_number completed: $keyframes keyframes, $map_points map points in ${duration}s"
     else
-        log "Run $run_number failed: No frames processed"
+        log "Run $run_number failed: No valid trajectory generated"
         return 1
     fi
 }
@@ -316,22 +362,53 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 
 def parse_log_file(log_file_path):
-    """Parse ORB-SLAM3 log file to extract frame processing times."""
-    processing_times_ms = []
-    time_regex = re.compile(r"Frame processing time: (\d+\.\d+)\s+ms")
+    """Parse ORB-SLAM3 log file to extract performance metrics."""
+    metrics = {
+        'processing_times_ms': [],
+        'map_points': 0,
+        'keyframes': 0,
+        'mode_used': 'Unknown',
+        'success': False
+    }
     
     try:
         with open(log_file_path, 'r') as f:
-            for line in f:
-                match = time_regex.search(line)
-                if match:
-                    time_ms = float(match.group(1))
-                    processing_times_ms.append(time_ms)
+            content = f.read()
+            
+        # Determine which mode was used
+        if "Stereo-Inertial" in content:
+            metrics['mode_used'] = 'Stereo-Inertial'
+        elif "Monocular-Inertial" in content:
+            metrics['mode_used'] = 'Monocular-Inertial'
+        elif "Monocular" in content:
+            metrics['mode_used'] = 'Monocular'
+            
+        # Extract map points
+        map_match = re.search(r'New Map created with (\d+) points', content)
+        if map_match:
+            metrics['map_points'] = int(map_match.group(1))
+            
+        # Extract keyframes
+        kf_matches = re.findall(r'Map \d+ has (\d+) KFs', content)
+        if kf_matches:
+            metrics['keyframes'] = int(kf_matches[-1])
+            
+        # Check if trajectory was saved (indicates success)
+        if "Saving trajectory to CameraTrajectory.txt" in content:
+            metrics['success'] = True
+            
+        # Extract frame processing times if available
+        time_regex = re.compile(r"Frame processing time: (\d+\.\d+)\s+ms")
+        for line in content.split('\n'):
+            match = time_regex.search(line)
+            if match:
+                time_ms = float(match.group(1))
+                metrics['processing_times_ms'].append(time_ms)
+                
     except FileNotFoundError:
         print(f"Error: Log file not found at '{log_file_path}'")
-        return []
-    
-    return processing_times_ms
+        
+    return metrics
 
 def calculate_metrics(processing_times_ms):
     """Calculate performance metrics from processing times."""
@@ -365,28 +442,59 @@ def main():
     # Process all log files
     for log_file in logs_dir.glob('run_*.log'):
         print(f"Processing {log_file.name}...")
-        times = parse_log_file(log_file)
-        if times:
-            metrics = calculate_metrics(times)
-            metrics['log_file'] = log_file.name
-            all_metrics.append(metrics)
+        log_metrics = parse_log_file(log_file)
+        
+        if log_metrics['success']:
+            # Calculate timing metrics if processing times are available
+            timing_metrics = {}
+            if log_metrics['processing_times_ms']:
+                timing_metrics = calculate_metrics(log_metrics['processing_times_ms'])
+            
+            # Combine all metrics
+            combined_metrics = {
+                'log_file': log_file.name,
+                'mode_used': log_metrics['mode_used'],
+                'map_points': log_metrics['map_points'],
+                'keyframes': log_metrics['keyframes'],
+                'success': log_metrics['success']
+            }
+            combined_metrics.update(timing_metrics)
+            all_metrics.append(combined_metrics)
+        else:
+            print(f"  Skipping {log_file.name} - run was not successful")
     
     if not all_metrics:
-        print("No valid log files found!")
+        print("No successful runs found!")
         return
     
     # Calculate aggregate statistics
-    throughputs = [m['throughput_fps'] for m in all_metrics]
-    p99_latencies = [m['p99_latency_ms'] for m in all_metrics]
-    mean_latencies = [m['mean_latency_ms'] for m in all_metrics]
+    successful_runs = len(all_metrics)
+    modes_used = [m['mode_used'] for m in all_metrics]
+    map_points = [m['map_points'] for m in all_metrics if m['map_points'] > 0]
+    keyframes = [m['keyframes'] for m in all_metrics if m['keyframes'] > 0]
     
-    print("\n" + "="*50)
+    # Only calculate timing stats if available
+    throughputs = [m['throughput_fps'] for m in all_metrics if 'throughput_fps' in m]
+    p99_latencies = [m['p99_latency_ms'] for m in all_metrics if 'p99_latency_ms' in m]
+    mean_latencies = [m['mean_latency_ms'] for m in all_metrics if 'mean_latency_ms' in m]
+    
+    print("\n" + "="*60)
     print("ORB-SLAM3 Performance Analysis - Radxa CM5 (RK3588S)")
-    print("="*50)
-    print(f"Number of runs: {len(all_metrics)}")
-    print(f"Average throughput: {np.mean(throughputs):.2f} ± {np.std(throughputs):.2f} FPS")
-    print(f"Average P99 latency: {np.mean(p99_latencies):.2f} ± {np.std(p99_latencies):.2f} ms")
-    print(f"Average mean latency: {np.mean(mean_latencies):.2f} ± {np.std(mean_latencies):.2f} ms")
+    print("="*60)
+    print(f"Successful runs: {successful_runs}")
+    print(f"Modes used: {', '.join(set(modes_used))}")
+    
+    if map_points:
+        print(f"Average map points: {np.mean(map_points):.0f} ± {np.std(map_points):.0f}")
+    if keyframes:
+        print(f"Average keyframes: {np.mean(keyframes):.0f} ± {np.std(keyframes):.0f}")
+        
+    if throughputs:
+        print(f"Average throughput: {np.mean(throughputs):.2f} ± {np.std(throughputs):.2f} FPS")
+    if p99_latencies:
+        print(f"Average P99 latency: {np.mean(p99_latencies):.2f} ± {np.std(p99_latencies):.2f} ms")
+    if mean_latencies:
+        print(f"Average mean latency: {np.mean(mean_latencies):.2f} ± {np.std(mean_latencies):.2f} ms")
     
     # Save detailed results
     with open(results_dir / 'detailed_analysis.txt', 'w') as f:

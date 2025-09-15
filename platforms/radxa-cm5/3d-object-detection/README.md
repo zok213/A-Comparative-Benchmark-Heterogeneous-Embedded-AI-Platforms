@@ -74,14 +74,29 @@ echo $MODELS_ROOT
 echo $DATASETS_ROOT
 ```
 
-### 2. Run Benchmark
+### 2. Download Models and Datasets
 ```bash
+# Download ONNX models (CREStereo + PointPillars)
 cd radxa-cm5/3d-object-detection/
+python3 download_models.py
+
+# Download KITTI dataset using cookies (automatic with authentication)
+python3 download_kitti_with_cookies.py
+
+# Alternative: Manual KITTI download
+# 1. Visit: https://www.cvlibs.net/datasets/kitti/
+# 2. Login to your account
+# 3. Download required files to ~/benchmark_workspace/datasets/kitti/
+```
+
+### 3. Run Benchmark
+```bash
+# After models and datasets are ready
 chmod +x run_benchmark.sh
 ./run_benchmark.sh
 ```
 
-### 3. View Results
+### 4. View Results
 ```bash
 # View NPU results
 cat ~/benchmark_workspace/results/3d_detection/3d_detection_results_npu_*.json
