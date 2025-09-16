@@ -1,6 +1,22 @@
-# 3D Object Detection Benchmark - NVIDIA Jetson
+# 3D Object Detection Benchmark - NVIDIA J1. **Install dependencies:**
+   ```bash
+   cd ../setup
+   ./install_all.sh
+   ```
 
-This directory contains the complete benchmarking setup for 3D Object Detection using Pseudo-LiDAR + PointPillars on NVIDIA Jetson platforms.
+2. **Download models and datasets:**
+   ```bash
+   # Option 1: Download both models and datasets together
+   python3 ../../../datasets/download_all_datasets.py --datasets kitti --include-models
+   
+   # Option 2: Download separately with specific control
+   python3 ../../../datasets/download_all_models.py --benchmarks 3d-detection
+   python3 ../../../datasets/download_kitti_with_cookies.py
+   # Downloads: scene_flow + object_calib for stereo depth + 3D detection
+   
+   # Models downloaded: CREStereo + PointPillars (ONNX format)
+   # Platform-specific optimization (TensorRT) happens automatically during benchmark
+   ```irectory contains the complete benchmarking setup for 3D Object Detection using Pseudo-LiDAR + PointPillars on NVIDIA Jetson platforms.
 
 ## Overview
 
@@ -46,12 +62,22 @@ The benchmark evaluates both CPU and GPU performance using TensorRT optimization
    ./install_all.sh
    ```
 
-2. **Run the benchmark:**
+2. **Download KITTI dataset (optimized):**
+   ```bash
+   # Download only essential files (145MB vs 23GB full dataset)
+   python3 ../../../datasets/download_kitti_with_cookies.py
+   # Downloads: scene_flow + object_calib for stereo depth + 3D detection
+   
+   # Alternative: Use the unified dataset downloader
+   python3 ../../../datasets/download_all_datasets.py --datasets kitti
+   ```
+
+3. **Run the benchmark:**
    ```bash
    ./run_benchmark.sh
    ```
 
-3. **View results:**
+4. **View results:**
    ```bash
    ls results/
    # Check the latest timestamped results folder

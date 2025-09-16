@@ -65,6 +65,18 @@ cat ~/benchmark_workspace/results/orb_slam3/detailed_analysis.txt
 xdg-open ~/benchmark_workspace/results/orb_slam3/performance_analysis.png
 ```
 
+### 4. Analyze Results with Unified Analysis Scripts
+```bash
+# Verify all metrics are correct and complete
+python ../../analysis/orb_slam3_verify_metrics.py
+
+# Calculate comprehensive performance metrics
+python ../../analysis/orb_slam3_calculate_metrics.py
+
+# Generate advanced analysis for research/publication
+python ../../analysis/orb_slam3_advanced_analysis.py
+```
+
 ## 📊 Understanding Results
 
 ### Output Files
@@ -189,6 +201,55 @@ For detailed debugging, examine the individual run logs:
 # View latest run log
 ls -la ~/benchmark_workspace/results/orb_slam3/logs/
 tail -100 ~/benchmark_workspace/results/orb_slam3/logs/run_1_*.log
+```
+
+## 🔬 Unified Analysis Framework
+
+This benchmark leverages the project's **unified analysis system** for consistent, scientific-grade evaluation across all embedded AI platforms:
+
+### 📊 Analysis Tools Overview
+
+**`orb_slam3_verify_metrics.py`** - Comprehensive Verification
+- ✅ Validates trajectory accuracy calculations (RMSE, ATE, RPE) 
+- 🔍 Checks dataset integrity and ground truth synchronization
+- 📋 Ensures benchmark compliance with TUM RGB-D standards
+- 🎯 Verifies statistical correctness and reproducibility
+
+**`orb_slam3_calculate_metrics.py`** - Performance Analysis  
+- ⚡ Calculates platform-specific performance characteristics
+- 💾 Analyzes memory utilization and bottlenecks
+- 🔋 Evaluates power efficiency metrics (fps/W)
+- 🏆 Generates standardized benchmark scores (0-100 scale)
+
+**`orb_slam3_advanced_analysis.py`** - Research-Grade Analysis
+- 📈 Advanced statistical analysis with confidence intervals
+- 🔄 Cross-platform comparative analysis vs other embedded AI platforms
+- 📚 Publication-ready insights and research contributions
+- 🔬 Peer-review quality scientific rigor assessment
+
+### 🎯 Platform-Specific Insights for QCS6490
+
+The unified scripts automatically detect Qualcomm QCS6490 and provide:
+- **Power Efficiency Focus**: Industry-leading fps/W analysis
+- **Mobile Optimization**: DSP integration potential assessment  
+- **Thermal Analysis**: Kryo CPU thermal behavior characterization
+- **Adreno GPU**: Graphics subsystem utilization analysis
+
+### 💡 Benefits of Unified Approach
+- **Cross-Platform Comparison**: Direct comparison with NVIDIA Jetson, Radxa CM5
+- **Consistency**: Same methodology ensures fair benchmarking
+- **Research Quality**: Publication-ready statistical analysis
+- **Maintenance**: Single source of truth, automatic updates
+
+### 📋 Analysis Workflow Example
+```bash
+# After benchmark completion
+./run_benchmark.sh
+
+# Comprehensive analysis pipeline  
+python ../../analysis/orb_slam3_verify_metrics.py      # ✅ Verification
+python ../../analysis/orb_slam3_calculate_metrics.py   # 📊 Performance  
+python ../../analysis/orb_slam3_advanced_analysis.py   # 🔬 Research analysis
 ```
 
 ## 🔬 Scientific Methodology

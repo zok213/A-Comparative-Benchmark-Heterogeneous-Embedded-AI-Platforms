@@ -142,10 +142,8 @@ def main():
             print(f"✓ {filename} already exists")
             success_count += 1
         else:
-            print(f"Note: You need to manually download {filename}")
-            print(f"Expected location: {filepath}")
-            # if download_file(url, filepath):
-            #     success_count += 1
+            if download_file(url, filepath):
+                success_count += 1
     
     print(f"\nModel preparation: {success_count}/{len(models)} models ready")
 

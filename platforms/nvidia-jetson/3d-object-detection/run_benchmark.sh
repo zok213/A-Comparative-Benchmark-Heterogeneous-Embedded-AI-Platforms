@@ -113,10 +113,10 @@ def main():
     models_dir = Path(os.environ.get('MODELS_PATH', '.')) / 'onnx'
     models_dir.mkdir(parents=True, exist_ok=True)
     
-    # Model URLs (these would need to be actual URLs)
+    # Model URLs - Updated with real sources
     models = {
-        'crestereo.onnx': 'https://example.com/models/crestereo.onnx',
-        'pointpillars.onnx': 'https://example.com/models/pointpillars.onnx'
+        'crestereo.onnx': 'https://github.com/PINTO0309/PINTO_model_zoo/raw/main/284_CREStereo/crestereo_init_iter2_480x640.onnx',
+        'pointpillars.onnx': 'https://github.com/NVIDIA-AI-IOT/CUDA-PointPillars/releases/download/v1.0/pointpillars.onnx'
     }
     
     success_count = 0
@@ -126,10 +126,8 @@ def main():
             print(f"✓ {filename} already exists")
             success_count += 1
         else:
-            print(f"Note: You need to manually download {filename}")
-            print(f"Expected location: {filepath}")
-            # if download_file(url, filepath):
-            #     success_count += 1
+            if download_file(url, filepath):
+                success_count += 1
     
     print(f"\nModel preparation: {success_count}/{len(models)} models ready")
 

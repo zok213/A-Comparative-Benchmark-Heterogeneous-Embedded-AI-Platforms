@@ -88,6 +88,20 @@ cat ~/benchmark_workspace/results/orb_slam3/detailed_analysis.txt
 xdg-open ~/benchmark_workspace/results/orb_slam3/performance_analysis.png
 ```
 
+### 4. Advanced Analysis with Unified Scripts  
+```bash
+# Comprehensive metrics verification and analysis
+python ../../analysis/orb_slam3_verify_metrics.py      # ✅ Verify correctness
+python ../../analysis/orb_slam3_calculate_metrics.py   # 📊 Calculate metrics
+python ../../analysis/orb_slam3_advanced_analysis.py   # 🔬 Research analysis
+```
+
+**🎯 Radxa CM5 Specialized Analysis**: The unified scripts automatically detect RK3588S and provide:
+- **NPU Utilization Analysis**: 6 TOPS NPU potential assessment
+- **big.LITTLE Optimization**: ARM Cortex-A76/A55 performance characterization  
+- **Mali GPU Analysis**: Graphics subsystem utilization evaluation
+- **Novel Research Context**: First ORB-SLAM3 evaluation on RK3588S architecture
+
 ## 📊 Understanding Results
 
 ### 🎯 **VERIFIED PERFORMANCE RESULTS - SEPTEMBER 15, 2025**

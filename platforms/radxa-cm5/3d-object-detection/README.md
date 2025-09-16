@@ -76,12 +76,19 @@ echo $DATASETS_ROOT
 
 ### 2. Download Models and Datasets
 ```bash
-# Download ONNX models (CREStereo + PointPillars)
+# Download ONNX models and datasets using unified downloaders
 cd radxa-cm5/3d-object-detection/
-python3 download_models.py
 
-# Download KITTI dataset using cookies (automatic with authentication)
-python3 download_kitti_with_cookies.py
+# Option 1: Download both models and datasets together
+python3 ../../../datasets/download_all_datasets.py --datasets kitti --include-models
+
+# Option 2: Download separately with specific control
+python3 ../../../datasets/download_all_models.py --benchmarks 3d-detection
+python3 ../../../datasets/download_kitti_with_cookies.py
+
+# Models downloaded:
+# - CREStereo: PINTO0309 model zoo (480x640 resolution)
+# - PointPillars: NVIDIA CUDA-PointPillars repository
 
 # Alternative: Manual KITTI download
 # 1. Visit: https://www.cvlibs.net/datasets/kitti/

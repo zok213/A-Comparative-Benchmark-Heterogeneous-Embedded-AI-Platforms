@@ -51,6 +51,18 @@ ORB-SLAM3 is a feature-based SLAM system that performs real-time tracking, mappi
    # Check the latest timestamped results folder
    ```
 
+4. **Analyze results with unified analysis scripts:**
+   ```bash
+   # Verify all metrics are correct and complete
+   python ../../analysis/orb_slam3_verify_metrics.py
+   
+   # Calculate comprehensive performance metrics
+   python ../../analysis/orb_slam3_calculate_metrics.py
+   
+   # Generate advanced analysis for research/publication
+   python ../../analysis/orb_slam3_advanced_analysis.py
+   ```
+
 ## Benchmark Configuration
 
 ### Default Settings
@@ -171,6 +183,47 @@ htop  # In another terminal
 - Consistent system configuration
 - Detailed environment logging
 - Version-controlled parameters
+
+## Unified Analysis Scripts
+
+This benchmark integrates with the project's **unified analysis system** located in `../../analysis/`. These platform-agnostic scripts automatically detect the NVIDIA Jetson platform and provide:
+
+### Available Analysis Tools
+
+#### `orb_slam3_verify_metrics.py`
+- ✅ Validates all calculated metrics for correctness
+- 🔍 Checks dataset integrity and ground truth alignment  
+- 📊 Verifies trajectory accuracy calculations (RMSE, ATE, RPE)
+- 🎯 Ensures benchmark compliance and reproducibility
+
+#### `orb_slam3_calculate_metrics.py`  
+- 📈 Calculates comprehensive performance metrics
+- ⚡ Platform-specific optimization recommendations
+- 🏆 Standardized benchmark scores for comparison
+- 💡 Identifies bottlenecks and improvement opportunities
+
+#### `orb_slam3_advanced_analysis.py`
+- 🔬 Advanced statistical analysis with confidence intervals
+- 📚 Publication-ready insights and research contributions
+- 🔄 Cross-platform comparative analysis
+- 📊 Scientific rigor assessment for peer review
+
+### Benefits of Unified Approach
+- **Consistency**: Same analysis methodology across all platforms
+- **Maintenance**: Single source of truth, easier updates
+- **Comparison**: Direct performance comparison with other embedded AI platforms
+- **Research**: Publication-ready analysis with statistical rigor
+
+### Example Analysis Workflow
+```bash
+# After running benchmark
+./run_benchmark.sh
+
+# Comprehensive analysis pipeline
+python ../../analysis/orb_slam3_verify_metrics.py      # ✅ Verify correctness
+python ../../analysis/orb_slam3_calculate_metrics.py   # 📊 Calculate metrics  
+python ../../analysis/orb_slam3_advanced_analysis.py   # 🔬 Advanced analysis
+```
 
 ## Advanced Usage
 

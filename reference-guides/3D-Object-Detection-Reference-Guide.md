@@ -50,7 +50,9 @@ A consistent software baseline is critical for isolating hardware performance di
 
 ### **2.3. Models and Dataset Acquisition**
 
-* **Pre-trained Models:** Download pre-trained versions of the CREStereo and PointPillars models. For maximum cross-platform compatibility, these models should be obtained in the ONNX (Open Neural Network Exchange) format, which will serve as the common starting point for optimization on each platform.  
+* **Pre-trained Models:** Download pre-trained versions of the CREStereo and PointPillars models. For maximum cross-platform compatibility, these models should be obtained in the ONNX (Open Neural Network Exchange) format, which will serve as the common starting point for optimization on each platform. The benchmark suite automatically downloads these models from verified sources:
+  - **CREStereo**: PINTO0309's model zoo (284_CREStereo) - 480x640 resolution version
+  - **PointPillars**: NVIDIA CUDA-PointPillars repository - official ONNX release  
 * **KITTI Dataset:** Download the **KITTI Stereo 2015** 23 and  
   **KITTI 3D Object Detection** 6 datasets. The data must be organized into the following directory structure to ensure compatibility with the provided data loaders and evaluation scripts. This structure separates training and testing data and organizes images, calibration files, and ground-truth labels into their respective subdirectories.1  
   KITTI/object/  

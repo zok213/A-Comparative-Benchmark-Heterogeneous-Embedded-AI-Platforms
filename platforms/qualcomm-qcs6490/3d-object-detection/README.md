@@ -38,18 +38,32 @@ This benchmark evaluates the AI accelerator performance of the Qualcomm QCS6490 
 - Ubuntu 20.04 LTS (ARM64)
 - Qualcomm Neural Processing SDK (SNPE) v2.x+ properly installed
 - Platform setup completed (run `../setup/install_all.sh` first)
-- KITTI dataset downloaded (run `../../datasets/prepare_all_datasets.sh`)
+- KITTI dataset (use optimized download script below)
 
 ## 🚀 Quick Start
 
-### 1. Verify Prerequisites
+### 1. Download Models and Datasets
+```bash
+# Option 1: Download both models and datasets together
+python3 ../../../datasets/download_all_datasets.py --datasets kitti --include-models
+
+# Option 2: Download separately with specific control
+python3 ../../../datasets/download_all_models.py --benchmarks 3d-detection
+python3 ../../../datasets/download_kitti_with_cookies.py
+# Downloads: scene_flow + object_calib for stereo depth + 3D detection
+
+# Models downloaded: CREStereo + PointPillars (ONNX format)
+# Platform-specific optimization (SNPE DLC) happens automatically during benchmark
+```
+
+### 2. Verify Prerequisites
 ```bash
 # Check if SNPE is properly installed
 echo $SNPE_ROOT
 ls $SNPE_ROOT/bin/x86_64-linux-clang/snpe-onnx-to-dlc
 
 # Check if KITTI dataset is available
-ls ~/benchmark_workspace/datasets/kitti/object/training/
+ls ~/benchmark_workspace/datasets/kitti/
 
 # Check environment variables
 source ~/benchmark_workspace/setup_env.sh
