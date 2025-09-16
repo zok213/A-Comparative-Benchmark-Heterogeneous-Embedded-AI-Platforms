@@ -52,7 +52,7 @@ def download_with_cookies(url, filepath, cookies):
 def main():
     """Download Cityscapes dataset files using cookies."""
     
-    # Cityscapes authentication cookie (provided by user)
+    # Cityscapes authentication cookie (updated September 16, 2025)
     cityscapes_cookies = {
         'PHPSESSID': 'ufq0vnvd739gnknubejjm2v1ff'
     }

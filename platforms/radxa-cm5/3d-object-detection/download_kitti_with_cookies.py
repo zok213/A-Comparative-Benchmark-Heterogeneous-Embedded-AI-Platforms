@@ -47,7 +47,7 @@ def download_with_cookies(url, filepath, cookies):
 def main():
     """Download KITTI dataset files using cookies."""
     
-    # KITTI authentication cookie (provided by user)
+    # KITTI authentication cookie (updated September 16, 2025 - expires 2025-10-15)
     kitti_cookies = {
         'KITTI_USER': '964868425d81a75403b6e8d110074ea42ebc0671'
     }
