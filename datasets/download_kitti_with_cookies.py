@@ -76,7 +76,8 @@ def download_kitti_3d_detection(output_dir=None):
     
     print(f"Downloading KITTI dataset to: {output_dir}")
     
-    # Optimized file list for 3D Object Detection (145MB vs 23GB full dataset)
+    # Complete file list for 3D Object Detection benchmarks (12.15GB)
+    # Essential for RGB-based detection and Image-to-3D fusion methods
     downloads = [
         {
             'url': ('https://s3.eu-central-1.amazonaws.com/avg-kitti/'
@@ -89,17 +90,34 @@ def download_kitti_3d_detection(output_dir=None):
                     'data_object_calib.zip'),
             'filename': 'data_object_calib.zip',
             'description': 'Camera calibration data (3MB)'
+        },
+        {
+            'url': ('https://s3.eu-central-1.amazonaws.com/avg-kitti/'
+                    'data_object_image_2.zip'),
+            'filename': 'data_object_image_2.zip',
+            'description': 'RGB images for 3D object detection (12GB) - ESSENTIAL for comprehensive benchmarks'
+        },
+        {
+            'url': ('https://s3.eu-central-1.amazonaws.com/avg-kitti/'
+                    'data_object_label_2.zip'),
+            'filename': 'data_object_label_2.zip',
+            'description': 'Ground truth labels for 3D object detection (5MB)'
         }
     ]
     
     success_count = 0
     total_files = len(downloads)
     
-    print(f"\nStarting download of {total_files} optimized KITTI files...")
-    print("=" * 60)
+    print(f"\n🎯 3D Object Detection Complete Dataset")
+    print(f"📊 Total files: {total_files}")
+    print(f"💾 Total size: ~12.15GB (includes RGB images for comprehensive benchmarks)")
+    print(f"⚠️  Ensure you have at least 15GB free space for download + extraction")
+    print(f"\nStarting download of {total_files} KITTI files...")
+    print("=" * 70)
     
     for i, download in enumerate(downloads, 1):
         print(f"\n[{i}/{total_files}] {download['description']}")
+        print(f"🔗 URL: ...{download['url'][-50:]}")  # Show last 50 chars of URL
         filepath = output_dir / download['filename']
         
         if download_with_cookies(download['url'], filepath, kitti_cookies):

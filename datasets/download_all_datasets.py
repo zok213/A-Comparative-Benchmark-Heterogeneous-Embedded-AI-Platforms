@@ -65,7 +65,7 @@ def download_kitti_dataset(output_dir):
     
     kitti_dir = output_dir / 'kitti'
     
-    # Optimized file list for 3D Object Detection (145MB vs 23GB)
+    # Complete file list for 3D Object Detection (12.15GB - includes RGB images)
     downloads = [
         {
             'url': ('https://s3.eu-central-1.amazonaws.com/avg-kitti/'
@@ -78,6 +78,18 @@ def download_kitti_dataset(output_dir):
                     'data_object_calib.zip'),
             'filename': 'data_object_calib.zip',
             'description': 'Camera calibration data (3MB)'
+        },
+        {
+            'url': ('https://s3.eu-central-1.amazonaws.com/avg-kitti/'
+                    'data_object_image_2.zip'),
+            'filename': 'data_object_image_2.zip',
+            'description': 'RGB images for 3D object detection (12GB) - ESSENTIAL for comprehensive benchmarks'
+        },
+        {
+            'url': ('https://s3.eu-central-1.amazonaws.com/avg-kitti/'
+                    'data_object_label_2.zip'),
+            'filename': 'data_object_label_2.zip',
+            'description': 'Ground truth labels for 3D object detection (5MB)'
         }
     ]
     
@@ -208,7 +220,7 @@ def main():
         print("=" * 60)
         print("Supported resources:")
         print("📊 Datasets:")
-        print("  • KITTI: 3D Object Detection (145MB optimized)")
+        print("  • KITTI: 3D Object Detection (~12.15GB with RGB images)")
         print("  • Cityscapes: Semantic Segmentation (~11GB)")
         print("🧠 Models:")
         print("  • 3D Detection: CREStereo + PointPillars (ONNX)")
